@@ -8,6 +8,8 @@ ROOT = pathlib.Path(unreal.Paths.project_dir()).resolve()
 REPORT = ROOT / 'Saved/Codex/build_result.txt'
 REPORT.parent.mkdir(parents=True, exist_ok=True)
 try:
+    if unreal.EditorAssetLibrary.does_asset_exist('/Game/World/Blueprints/BP_DustfallEnvironmentDirector'):
+        raise RuntimeError('Phase 2 exists. Use Scripts/build_phase2.py; Phase 1 rebuild would reset the world and player.')
     runpy.run_path(str(ROOT / 'Scripts/build_player.py'), run_name='__main__')
     world = runpy.run_path(str(ROOT / 'Scripts/build_world.py'), run_name='__main__')
     runpy.run_path(str(ROOT / 'Scripts/build_habitat.py'),

@@ -8,8 +8,9 @@ Blueprint survival exploration prototype for Unreal Engine **5.8.4**. Read
 
 Open `dustfall.uproject` in UE 5.8.4, open
 `/Game/World/Maps/L_Dustfall_Foundation`, and press Play. The foundation map
-contains a World Partition landscape, warm dust haze, a collision pad and a
-temporary habitat exterior. The habitat is a sealed exterior blockout in Phase 1.
+contains a 2 km World Partition landscape, licensed Quixel sand/gravel/rock
+surfaces, instanced scanned rocks, exterior wreck/ruin/cruiser landmarks, wind,
+and runtime weather and day/night. The habitat remains a sealed exterior blockout.
 
 | Control | Action |
 | --- | --- |
@@ -45,14 +46,16 @@ Close other editors that have project assets loaded before running a commandlet
 build. Alternatively, run the scripts inside one dedicated editor using
 `Scripts/editor_session.py`; its local queue is `Saved/Codex/editor_command.py`.
 
-Example initial build in PowerShell (adjust the engine installation path):
+Historical Phase 1 initial build for a fresh project only (existing Phase 2
+projects deliberately reject this reset; use the Phase 2 modules below):
 
 ```powershell
 & 'G:/Program Files/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe' "$PWD/dustfall.uproject" -run=pythonscript "-script=$PWD/Scripts/build_phase1.py" -unattended -nullrhi -nosplash
 ```
 
-Run the play verification in a dedicated editor instance, preserving any unsaved
-scene in another instance:
+Prefer running verification through the command queue in the open editor.
+If no editor is open, start one dedicated session; do not open a second writer
+against loaded project assets:
 
 ```powershell
 & 'G:/Program Files/UE_5.8/Engine/Binaries/Win64/UnrealEditor.exe' "$PWD/dustfall.uproject" "-ExecCmds=py $PWD/Scripts/verify_phase1_editor.py" -nosplash
@@ -64,8 +67,43 @@ separate validation. `Saved`, `Intermediate`, caches and local reports are ignor
 by Git. See `Docs/Phase1_AssetPlan.md` for asset provenance and the acquisition plan.
 See `PROGRESS.md` for completed checks and remaining validation limits.
 
-## Next phase
+## Phase 2 authoring and runtime
 
-Phase 2 develops the world and atmosphere: Fab / Quixel Megascans terrain,
-rocks and debris, weather and dust storms, day/night lighting, wreck / cruiser /
-ruin landmarks, ambience, and streaming/performance profiling.
+Use one editor with the foundation map and landscape cells loaded. Run
+`Scripts/build_phase2.py` for the complete repeatable build, after resolving any
+existing dirty packages. It never rebuilds player graphs. Source downloads stay
+in ignored `Saved/AssetInbox/Quixel`; the twenty-asset import is incremental.
+Imported game assets live under `/Game/World/QuixelPhase2`. Preserve unrelated Fab
+imports and original Epic template paths. See `Docs/Phase2_AssetManifest.json`
+for source archive hashes, names and imported paths.
+
+Individual modules are `import_phase2_quixel.py`, `build_phase2_landmarks.py`,
+`build_phase2_routes.py`, `build_phase2_wasteland.py`, `build_phase2_debris.py`,
+`build_phase2_audio.py` and `build_phase2_environment.py`. Save changed external
+actor/component packages as well as the map. The legacy `build_environment.py`
+now dispatches to Phase 2 atmosphere; Phase 1 full/world rebuilds refuse to reset
+an established Phase 2 project.
+
+`/Game/World/Blueprints/BP_DustfallEnvironmentDirector` runs entirely in Blueprint.
+`/Game/Data/DA_Environment_Phase2` is read at runtime, unlike the Phase 1 assets.
+It tunes fog densities, blend speed, day length, weather durations, sun/skylight,
+wind volume and fog color. The default day lasts 30 minutes and starts in late
+afternoon. Weather cycles haze → calm → haze → storm → haze; blends are eased
+over roughly 30 seconds rather than abrupt swaps.
+
+Blueprint controls: `SetWeather(Value)` (0 calm, 1 haze, 2 storm),
+`SetTimeOfDay(Value)` (0 midnight, .25 sunrise, .5 noon, .75 sunset), and
+`GetEnvironmentState()` (weather, time, normalized storm intensity).
+`OnEnvironmentChanged` fires after each environment update; listeners query
+the current state. Manual weather changes reset the weather age. These neutral
+signals are extension points; they do not drain stats or implement Strain.
+
+Run `Scripts/verify_phase2_editor.py` for runtime clock, weather/fog, lighting,
+wind, automatic transition, query and movement checks. It takes about two minutes
+because it waits for real weather blends. Run `Scripts/verify_phase1_editor.py`
+for player regression checks. Reports remain under ignored `Saved/Codex`.
+See PROGRESS.md for actual test results and outstanding checks.
+
+Landmarks are closed exterior prototypes, with non-interactive scanned debris.
+Home remains the warm sanctuary landmark. Habitat interior/airlock, survival
+stats, death/respawn and inventory remain later-phase work.

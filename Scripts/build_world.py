@@ -94,6 +94,8 @@ def _ground_material():
 
 
 def build_world():
+    if unreal.EditorAssetLibrary.does_asset_exist('/Game/World/Blueprints/BP_DustfallEnvironmentDirector'):
+        raise RuntimeError('Phase 2 exists. Use its environment/world builders; Phase 1 would reset lighting and spawn.')
     levels = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
     if unreal.EditorAssetLibrary.does_asset_exist(MAP):
         if not levels.load_level(MAP):

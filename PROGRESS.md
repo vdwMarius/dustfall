@@ -1,5 +1,52 @@
 # Development progress
 
+## 2026-11-11 — Phase 2 world and runtime atmosphere module
+
+Created exactly five agents, sequencing the four specialists within the runtime
+limit. Inspected clean main at 5191249 and the open foundation editor before
+authoring. Used one editor writer and preserved later unrelated Fab additions.
+
+Completed:
+
+- Imported twenty user-owned Quixel downloads: eight 2K surfaces and twelve
+  Nanite meshes. Recorded archive hashes, source IDs and paths in the asset manifest.
+- Replaced mound placeholders with 2,185 scanned rock instances in 64 spatial HISM
+  cells, seed 2042. Added world-coordinate sand/gravel and slope-driven rock material.
+- Added exterior wreck, ruin and roughly 200 m cruiser prototypes, 80 scanned
+  industrial props, 36 route stakes and a gentle return-home ramp. The cruiser
+  occupies a measured flatter site near (-550 m, +50 m).
+- Runtime Blueprint director reads DA_Environment_Phase2 for calm/haze/storm,
+  eased transitions, autonomous cycling, a 30-minute day, night lighting and wind.
+  SetWeather, SetTimeOfDay, GetEnvironmentState and OnEnvironmentChanged expose
+  neutral future-system hooks. No runtime Python or survival/Strain mechanics.
+- Project-owned synthesized wind loops through an AudioComponent. This version
+  uses SoundWave, not MetaSound; subjective listening review remains.
+- Repeatable module builders and guarded legacy scripts preserve player graphs,
+  template paths and Phase 2 lighting. Probe assets and generated files are ignored.
+
+Tested:
+
+- Revised environment PIE suite passed, including actual fog targets after blends,
+  automatic storm transition, clock, query, wind playback/volume, sun/skylight and
+  player movement. Full Phase 1 regression passed in a visible editor.
+- Physical V/F/Space and mouse look passed. Brief Shift input did not establish
+  sustained physical sprint; callable events verify its speed change.
+- Final collision-based navigation passed all 18 waypoints and returned home in
+  day/calm, night/haze and day/storm: about 2.03 km each, over 6 km total. Tests
+  used 4x game time and are not performance measurements.
+- All downloaded textures inspected at 2048x2048; Nanite and convex collision
+  checked separately. Development build/cook/stage/archive succeeded. Initial
+  cook reported zero errors and zero warnings.
+
+CommonUI requires Unreal's generated temporary launch target for packaging;
+it remains under ignored Intermediate/Binaries, with no native gameplay Source
+module. MCP is restricted to Editor targets because its descriptor is NoRedist.
+
+Next: finish frame-time/streaming capture and packaged runtime smoke validation.
+Stable 60+ FPS on representative mid-range hardware is not established. See
+Docs/Phase2_Validation.md for evidence and remaining limits. Unrelated
+Content/Megascans_8k imports and the source ZIP in Content remain outside this module.
+
 ## 2026-11-10 — Phase 1: Core Foundation
 
 Completed a Blueprint foundation using UE 5.8.4's third-person template and

@@ -1,0 +1,225 @@
+{
+  "assets": [
+    {
+      "id": "xgmpdek",
+      "name": "Desert Western Ground Sand Fine 01",
+      "archive": "Rock_Rough_xgmpdek_2K_surface_ms.zip",
+      "sha256": "8caf50d53815e305d80832b7871cc0b2204ac37432c4c8a7303aa6f95dcd6128",
+      "material": "/Game/World/QuixelPhase2/xgmpdek/M_xgmpdek.M_xgmpdek",
+      "mesh": null,
+      "source": "User-owned Quixel Purchased library; ZIP supplied by user",
+      "publisher": "Quixel",
+      "download_date": "2026-11-10"
+    },
+    {
+      "id": "xgimegf",
+      "name": "Desert Western Ground Sand Coarse 01",
+      "archive": "Sand_Desert_xgimegf_2K_surface_ms.zip",
+      "sha256": "b36b1634e47c325061435319258620a417ef3d88f8d7b4e2fa091e40835c5e1e",
+      "material": "/Game/World/QuixelPhase2/xgimegf/M_xgimegf.M_xgimegf",
+      "mesh": null,
+      "source": "User-owned Quixel Purchased library; ZIP supplied by user",
+      "publisher": "Quixel",
+      "download_date": "2026-11-10"
+    },
+    {
+      "id": "xglmfbr",
+      "name": "Desert Western Ground Gravel Fine 01",
+      "archive": "Sand_Desert_xglmfbr_2K_surface_ms.zip",
+      "sha256": "cfff1db0e2f6fbb6dfffff6e09c4c58192552929d4c2bc9fe89b6af737ad4ab6",
+      "material": "/Game/World/QuixelPhase2/xglmfbr/M_xglmfbr.M_xglmfbr",
+      "mesh": null,
+      "source": "User-owned Quixel Purchased library; ZIP supplied by user",
+      "publisher": "Quixel",
+      "download_date": "2026-11-10"
+    },
+    {
+      "id": "xgkoehf",
+      "name": "Desert Western Ground Gravel Coarse 06",
+      "archive": "Rock_Rough_xgkoehf_2K_surface_ms.zip",
+      "sha256": "578820a7e8dbd62f1053ec078edcc07fb43d36752924c513786d383f5068420b",
+      "material": "/Game/World/QuixelPhase2/xgkoehf/M_xgkoehf.M_xgkoehf",
+      "mesh": null,
+      "source": "User-owned Quixel Purchased library; ZIP supplied by user",
+      "publisher": "Quixel",
+      "download_date": "2026-11-10"
+    },
+    {
+      "id": "xiqebhm",
+      "name": "Desert Western Ground Dirt Coarse 07",
+      "archive": "Rock_Rough_xiqebhm_2K_surface_ms.zip",
+      "sha256": "c595d3c03067c48961cbaf36a0ee3a8aed170881a8d3dc8ea32fffd3855fffb2",
+      "material": "/Game/World/QuixelPhase2/xiqebhm/M_xiqebhm.M_xiqebhm",
+      "mesh": null,
+      "source": "User-owned Quixel Purchased library; ZIP supplied by user",
+      "publisher": "Quixel",
+      "download_date": "2026-11-10"
+    },
+    {
+      "id": "xgindb3",
+      "name": "Desert Western Ground Rock Coarse 01",
+      "archive": "Rock_Smooth_xgindb3_2K_surface_ms.zip",
+      "sha256": "8c9c4c50b3fb42a2f7335c4d5a300064747d891a5ca285117c937597cad2487e",
+      "material": "/Game/World/QuixelPhase2/xgindb3/M_xgindb3.M_xgindb3",
+      "mesh": null,
+      "source": "User-owned Quixel Purchased library; ZIP supplied by user",
+      "publisher": "Quixel",
+      "download_date": "2026-11-10"
+    },
+    {
+      "id": "xgixbbt",
+      "name": "Desert Western Ground Rock Smooth 01",
+      "archive": "Rock_Smooth_xgixbbt_2K_surface_ms.zip",
+      "sha256": "0eff22345aecf6d0e672dfb07a20bb29be208caf91ca60499878807fc3554a59",
+      "material": "/Game/World/QuixelPhase2/xgixbbt/M_xgixbbt.M_xgixbbt",
+      "mesh": null,
+      "source": "User-owned Quixel Purchased library; ZIP supplied by user",
+      "publisher": "Quixel",
+      "download_date": "2026-11-10"
+    },
+    {
+      "id": "xgincgc",
+      "name": "Desert Western Detail Sand Dried 02",
+      "archive": "Rock_Rough_xgincgc_2K_surface_ms.zip",
+      "sha256": "e04ca9b350518d399ebfa7ad45369a3e985867c96683eb74c645a5540e505e79",
+      "material": "/Game/World/QuixelPhase2/xgincgc/M_xgincgc.M_xgincgc",
+      "mesh": null,
+      "source": "User-owned Quixel Purchased library; ZIP supplied by user",
+      "publisher": "Quixel",
+      "download_date": "2026-11-10"
+    },
+    {
+      "id": "xgmdcay",
+      "name": "Desert Western Scatter Rock 15",
+      "archive": "Nature_xgmdcay_2K_3d_ms.zip",
+      "sha256": "9a5c86f208207b564e505297085e49b1d6a88d38b3f8bb058d3a014273594e6b",
+      "material": "/Game/World/QuixelPhase2/xgmdcay/M_xgmdcay.M_xgmdcay",
+      "mesh": "/Game/World/QuixelPhase2/xgmdcay/SM_xgmdcay.SM_xgmdcay",
+      "source": "User-owned Quixel Purchased library; ZIP supplied by user",
+      "publisher": "Quixel",
+      "download_date": "2026-11-10"
+    },
+    {
+      "id": "xgncbgz",
+      "name": "Desert Western Scatter Rock 16",
+      "archive": "Nature_xgncbgz_2K_3d_ms.zip",
+      "sha256": "3cc8c3b32f1bc779fc65055a7cc91b4b5bfae38af678e3b39b9c4982dd4dc49b",
+      "material": "/Game/World/QuixelPhase2/xgncbgz/M_xgncbgz.M_xgncbgz",
+      "mesh": "/Game/World/QuixelPhase2/xgncbgz/SM_xgncbgz.SM_xgncbgz",
+      "source": "User-owned Quixel Purchased library; ZIP supplied by user",
+      "publisher": "Quixel",
+      "download_date": "2026-11-10"
+    },
+    {
+      "id": "xgndbge",
+      "name": "Desert Western Scatter Rock 07",
+      "archive": "Nature_xgndbge_2K_3d_ms.zip",
+      "sha256": "cdbd9fa8f66877cdd061a6975576536b48253c5d941c0c0a0775ec3a2df73ac9",
+      "material": "/Game/World/QuixelPhase2/xgndbge/M_xgndbge.M_xgndbge",
+      "mesh": "/Game/World/QuixelPhase2/xgndbge/SM_xgndbge.SM_xgndbge",
+      "source": "User-owned Quixel Purchased library; ZIP supplied by user",
+      "publisher": "Quixel",
+      "download_date": "2026-11-10"
+    },
+    {
+      "id": "xgkmfcy",
+      "name": "Desert Western Rock Medium 03",
+      "archive": "Nature_Rock_Sandstone_xgkmfcy_2K_3d_ms.zip",
+      "sha256": "32df2ba20c1b81069ba97f15c7c732b6a373601ca5bd926874afbacd5d801401",
+      "material": "/Game/World/QuixelPhase2/xgkmfcy/M_xgkmfcy.M_xgkmfcy",
+      "mesh": "/Game/World/QuixelPhase2/xgkmfcy/SM_xgkmfcy.SM_xgkmfcy",
+      "source": "User-owned Quixel Purchased library; ZIP supplied by user",
+      "publisher": "Quixel",
+      "download_date": "2026-11-10"
+    },
+    {
+      "id": "xgmncdu",
+      "name": "Desert Western Rock Large 06",
+      "archive": "Nature_xgmncdu_2K_3d_ms.zip",
+      "sha256": "d45794e8afb8071e637d6fabaa194e7d2c331bcd13da2199ad7663e224c20a7d",
+      "material": "/Game/World/QuixelPhase2/xgmncdu/M_xgmncdu.M_xgmncdu",
+      "mesh": "/Game/World/QuixelPhase2/xgmncdu/SM_xgmncdu.SM_xgmncdu",
+      "source": "User-owned Quixel Purchased library; ZIP supplied by user",
+      "publisher": "Quixel",
+      "download_date": "2026-11-10"
+    },
+    {
+      "id": "xgoqfid",
+      "name": "Desert Western Cluster Rock Large 02",
+      "archive": "Nature_Rock_Sandstone_xgoqfid_2K_3d_ms.zip",
+      "sha256": "a2aba0fe216e96708e6339d20536ac82607bdd3e7551da5d646c64bea98c0712",
+      "material": "/Game/World/QuixelPhase2/xgoqfid/M_xgoqfid.M_xgoqfid",
+      "mesh": "/Game/World/QuixelPhase2/xgoqfid/SM_xgoqfid.SM_xgoqfid",
+      "source": "User-owned Quixel Purchased library; ZIP supplied by user",
+      "publisher": "Quixel",
+      "download_date": "2026-11-10"
+    },
+    {
+      "id": "xgjnech",
+      "name": "Desert Western Ledge Sand Medium 01",
+      "archive": "Nature_Embankment_xgjnech_2K_3d_ms.zip",
+      "sha256": "cde987954fa69a22fc9100e9937e65dbc5e9182f953ea4f1979f502f6a6b593d",
+      "material": "/Game/World/QuixelPhase2/xgjnech/M_xgjnech.M_xgjnech",
+      "mesh": "/Game/World/QuixelPhase2/xgjnech/SM_xgjnech.SM_xgjnech",
+      "source": "User-owned Quixel Purchased library; ZIP supplied by user",
+      "publisher": "Quixel",
+      "download_date": "2026-11-10"
+    },
+    {
+      "id": "xgjodeb",
+      "name": "Desert Western Cliff Sheer XL 02",
+      "archive": "Nature_Rock_Cliff_xgjodeb_2K_3d_ms.zip",
+      "sha256": "51c536738870be15502d51d95f6a73e7e08502c876c7bcb8cfd179bab0502d84",
+      "material": "/Game/World/QuixelPhase2/xgjodeb/M_xgjodeb.M_xgjodeb",
+      "mesh": "/Game/World/QuixelPhase2/xgjodeb/SM_xgjodeb.SM_xgjodeb",
+      "source": "User-owned Quixel Purchased library; ZIP supplied by user",
+      "publisher": "Quixel",
+      "download_date": "2026-11-10"
+    },
+    {
+      "id": "wcljbdb",
+      "name": "Rusty Metal Cover",
+      "archive": "Industrial_Hardware_Accessories_wcljbdb_2K_3d_ms.zip",
+      "sha256": "7d9f92ab233cca2c1eaaf0d44c9995c73338085157d01e8c622b41695002d72d",
+      "material": "/Game/World/QuixelPhase2/wcljbdb/M_wcljbdb.M_wcljbdb",
+      "mesh": "/Game/World/QuixelPhase2/wcljbdb/SM_wcljbdb.SM_wcljbdb",
+      "source": "User-owned Quixel Purchased library; ZIP supplied by user",
+      "publisher": "Quixel",
+      "download_date": "2026-11-10"
+    },
+    {
+      "id": "ullibjd",
+      "name": "Electric Box",
+      "archive": "Industrial_ullibjd_2K_3d_ms.zip",
+      "sha256": "a66bd71ce5233904466bb65d6f9958da1e4ac0686b2dabde0ba6e011426b451f",
+      "material": "/Game/World/QuixelPhase2/ullibjd/M_ullibjd.M_ullibjd",
+      "mesh": "/Game/World/QuixelPhase2/ullibjd/SM_ullibjd.SM_ullibjd",
+      "source": "User-owned Quixel Purchased library; ZIP supplied by user",
+      "publisher": "Quixel",
+      "download_date": "2026-11-10"
+    },
+    {
+      "id": "wdklears",
+      "name": "Metal Water Tank",
+      "archive": "Industrial_Storage_Barrel_wdklears_2K_3d_ms.zip",
+      "sha256": "13d65f4793dc530f5aa51a07e5f2a44de2d5f09e0c9de62a346b4cfc982f47f4",
+      "material": "/Game/World/QuixelPhase2/wdklears/M_wdklears.M_wdklears",
+      "mesh": "/Game/World/QuixelPhase2/wdklears/SM_wdklears.SM_wdklears",
+      "source": "User-owned Quixel Purchased library; ZIP supplied by user",
+      "publisher": "Quixel",
+      "download_date": "2026-11-10"
+    },
+    {
+      "id": "vkzidgds",
+      "name": "Jumper Cable",
+      "archive": "Industrial_vkzidgds_2K_3d_ms.zip",
+      "sha256": "42de9bcd1eff03733693785e0e347100a119103ffd09a24dba1f08e9d12f8544",
+      "material": "/Game/World/QuixelPhase2/vkzidgds/M_vkzidgds.M_vkzidgds",
+      "mesh": "/Game/World/QuixelPhase2/vkzidgds/SM_vkzidgds.SM_vkzidgds",
+      "source": "User-owned Quixel Purchased library; ZIP supplied by user",
+      "publisher": "Quixel",
+      "download_date": "2026-11-10"
+    }
+  ],
+  "errors": []
+}

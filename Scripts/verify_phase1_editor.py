@@ -250,7 +250,22 @@ def tick(delta):
             start = state['start_location']
             pawn.set_actor_location(start, False, False)
             pc.set_control_rotation(unreal.Rotator(0, 0, 180))
+            # Trace the actual approach so the test follows the habitat if its
+            # blockout is repositioned, and cannot pass on an unrelated obstacle.
+            end = unreal.Vector(start.x - 1000, start.y, start.z)
+            hit = unreal.SystemLibrary.line_trace_single(state['world'], start, end,
+                unreal.TraceTypeQuery.TRACE_TYPE_QUERY1, False, [pawn],
+                unreal.DrawDebugTrace.NONE, True)
+            parts = unreal.get_default_object(unreal.GameplayStatics.static_class()).call_method('BreakHitResult', (hit,))
+            actor = parts[9] if parts[0] else None
+            tags = [str(tag) for tag in actor.get_editor_property('tags')] if actor else []
+            if not actor or 'DF_Phase1_Habitat_Blockout' not in tags:
+                check('habitat collision by walking', 'fail', {'reason': 'Approach trace did not hit tagged habitat', 'hit': str(actor)})
+                finish('completed')
+                return
             state['collision_start_x'] = start.x
+            state['collision_impact_x'] = parts[5].x
+            state['collision_actor'] = str(actor)
             stage('collision_walk')
         elif state['stage'] == 'collision_walk':
             if elapsed < 1.5:
@@ -258,9 +273,13 @@ def tick(delta):
                 return
             end = state['pawn'].get_actor_location()
             start_x = state['collision_start_x']
-            passed = 350 <= end.x <= 410 and end.x < start_x - 50
+            radius = state['pawn'].get_component_by_class(unreal.CapsuleComponent).get_scaled_capsule_radius()
+            clearance = end.x - state['collision_impact_x']
+            passed = abs(clearance - radius) <= 20 and end.x < start_x - 50
             check('habitat collision by walking', 'pass' if passed else 'fail',
-                  {'start_x': start_x, 'end_x': end.x, 'basis': 'injected forward input towards +X face of Phase 1 shell'})
+                  {'start_x': start_x, 'end_x': end.x, 'impact_x': state['collision_impact_x'],
+                   'capsule_radius': radius, 'clearance': clearance, 'actor': state['collision_actor'],
+                   'basis': 'injected forward input toward traced habitat'})
             finish('completed')
     except Exception:
         result['errors'].append(traceback.format_exc())
