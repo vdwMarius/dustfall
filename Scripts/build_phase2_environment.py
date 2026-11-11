@@ -14,7 +14,7 @@ DATA_PATH = '/Game/Data/BP_EnvironmentPhase2Data'
 INSTANCE_PATH = '/Game/Data/DA_Environment_Phase2'
 DIRECTOR_PATH = '/Game/World/Blueprints/BP_DustfallEnvironmentDirector'
 DEFAULTS = {'DayLengthSeconds': 1800.0, 'CalmFogDensity': 0.018,
-            'HazeFogDensity': 0.045, 'StormFogDensity': 0.13,
+            'HazeFogDensity': 0.045, 'StormFogDensity': 1.0,
             'WeatherBlendSpeed': 0.2, 'SunIntensity': 15.0,
             'CalmDuration': 180.0, 'HazeDuration': 120.0, 'StormDuration': 60.0,
             'DaySkyIntensity': 0.6, 'NightSkyIntensity': 0.002,

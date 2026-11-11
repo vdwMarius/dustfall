@@ -81,3 +81,6 @@ __pycache__/
 
 # Disposable editor API probes; never game content.
 /Content/Developers/DF_Probe/
+
+# Local packaged playtest builds.
+/Builds/

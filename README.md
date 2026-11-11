@@ -104,6 +104,20 @@ because it waits for real weather blends. Run `Scripts/verify_phase1_editor.py`
 for player regression checks. Reports remain under ignored `Saved/Codex`.
 See PROGRESS.md for actual test results and outstanding checks.
 
+## Phase 2 playtest build and handoff
+
+Run `G:\ue\dustfall\Builds\Phase2\Windows\Play_DUSTFALL.cmd` for the packaged
+Windows Development build at 1920×1080 High. Keep its complete Windows folder.
+Use Alt+F4 to exit. Close the editor before performance testing. Reproduce the
+build with `Scripts/package_phase2.ps1`; local `Builds` output is ignored by Git.
+
+Follow [the acceptance checklist](Docs/Phase2_Playtest_Checklist.md) and give its
+results to the next chat together with [HANDOFF_Phase3.md](HANDOFF_Phase3.md).
+The handoff records asset/runtime contracts, editor precautions and Phase 3 scope.
+See [validation evidence](Docs/Phase2_Validation.md) for measured results and limits;
+representative mid-range stable 60+ FPS and human audio/readability acceptance
+remain unverified. Final storm density is 1.0, with an eased transition.
+
 Landmarks are closed exterior prototypes, with non-interactive scanned debris.
 Home remains the warm sanctuary landmark. Habitat interior/airlock, survival
 stats, death/respawn and inventory remain later-phase work.

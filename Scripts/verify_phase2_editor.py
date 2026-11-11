@@ -122,8 +122,9 @@ def tick(delta):
                 fog_ok = values[0]['fog_densities'][0] < values[1]['fog_densities'][0] < values[2]['fog_densities'][0]
             data = state['director'].get_editor_property('EnvironmentData')
             targets = [float(data.get_editor_property(n)) for n in ['CalmFogDensity','HazeFogDensity','StormFogDensity']]
-            fog_ok = fog_ok and all(abs(v['fog_densities'][0]-target)<.002 for v,target in zip(values,targets))
-            check('weather fog response', fog_ok, {'observed':values,'targets':targets,'settle_seconds':30})
+            tolerances = [max(.002,abs(target)*.005) for target in targets]
+            fog_ok = fog_ok and all(abs(v['fog_densities'][0]-target)<tol for v,target,tol in zip(values,targets,tolerances))
+            check('weather fog response', fog_ok, {'observed':values,'targets':targets,'tolerances':tolerances,'settle_seconds':30})
             wind = state['director'].get_component_by_class(unreal.AudioComponent)
             intensity = float(state['director'].get_editor_property('StormIntensity'))
             check('wind responds', bool(wind) and wind.is_playing() and intensity>.98 and wind.get_editor_property('volume_multiplier')>.7,

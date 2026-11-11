@@ -1,0 +1,224 @@
+{
+  "date": "2026-11-11",
+  "engine": "5.8.4",
+  "implementation_commit": "7365782",
+  "scope": "Phase 2 final saved storm tuning; manual acceptance remains pending",
+  "environment": {
+    "status": "passed",
+    "checks": {
+      "director compile": {
+        "status": "pass",
+        "detail": "True"
+      },
+      "director in world": {
+        "status": "pass",
+        "detail": {
+          "count": 1
+        }
+      },
+      "possessed pawn": {
+        "status": "pass",
+        "detail": "BP_DustfallCharacter_C"
+      },
+      "time progresses": {
+        "status": "pass",
+        "detail": {
+          "before": 0.6500485183878077,
+          "after": 0.6517161642780731,
+          "advance": 0.0016676458902653568
+        }
+      },
+      "weather states": {
+        "status": "pass",
+        "detail": [
+          {
+            "expected": 0,
+            "actual": 0,
+            "fog_densities": [
+              0.017999999225139618
+            ]
+          },
+          {
+            "expected": 1,
+            "actual": 1,
+            "fog_densities": [
+              0.04500000178813934
+            ]
+          },
+          {
+            "expected": 2,
+            "actual": 2,
+            "fog_densities": [
+              0.9976561665534973
+            ]
+          }
+        ]
+      },
+      "weather fog response": {
+        "status": "pass",
+        "detail": {
+          "observed": [
+            {
+              "expected": 0,
+              "actual": 0,
+              "fog_densities": [
+                0.017999999225139618
+              ]
+            },
+            {
+              "expected": 1,
+              "actual": 1,
+              "fog_densities": [
+                0.04500000178813934
+              ]
+            },
+            {
+              "expected": 2,
+              "actual": 2,
+              "fog_densities": [
+                0.9976561665534973
+              ]
+            }
+          ],
+          "targets": [
+            0.018,
+            0.045,
+            1.0
+          ],
+          "tolerances": [
+            0.002,
+            0.002,
+            0.005
+          ],
+          "settle_seconds": 30
+        }
+      },
+      "wind responds": {
+        "status": "pass",
+        "detail": {
+          "playing": true,
+          "storm_intensity": 0.997545717609989,
+          "volume": 0.7984046936035156
+        }
+      },
+      "environment query": {
+        "status": "pass",
+        "detail": "(2, 0.7017439132225181, 0.997545717609989)"
+      },
+      "day night lighting": {
+        "status": "pass",
+        "detail": {
+          "noon": {
+            "sun": 3.323570966720581,
+            "sky": 0.13294284045696259
+          },
+          "midnight": {
+            "sun": 0.0,
+            "sky": 0.0004425743827596307
+          }
+        }
+      },
+      "automatic weather": {
+        "status": "pass",
+        "detail": {
+          "storm_to_haze": 1,
+          "forced_elapsed_seconds": 99999
+        }
+      },
+      "time control": {
+        "status": "pass",
+        "detail": {
+          "requested": 0.75,
+          "actual": 0.7502756723326942
+        }
+      },
+      "movement during weather": {
+        "status": "pass",
+        "detail": {
+          "horizontal_cm": 414.01214541358013
+        }
+      }
+    },
+    "errors": [],
+    "scope": "PIE action injection does not test physical inputs or visual quality.",
+    "required_unpassed": []
+  },
+  "player_status": "passed",
+  "route_status": "passed",
+  "route_cases": [
+    {
+      "name": "Day_Calm",
+      "status": "pass",
+      "walked_cm": 203154.54909101498,
+      "real_seconds": 76.21900000000096,
+      "waypoints_reached": 18,
+      "weather": 0,
+      "storm_intensity": 0.0
+    },
+    {
+      "name": "Night_Haze",
+      "status": "pass",
+      "walked_cm": 203324.35232105092,
+      "real_seconds": 76.3279999999977,
+      "waypoints_reached": 18,
+      "weather": 1,
+      "storm_intensity": 0.0
+    },
+    {
+      "name": "Day_Storm",
+      "status": "pass",
+      "walked_cm": 203157.9895294608,
+      "real_seconds": 76.21900000000096,
+      "waypoints_reached": 18,
+      "weather": 2,
+      "storm_intensity": 1.0
+    }
+  ],
+  "route_scope": "CharacterMovement route traversal at 4x game time; no performance claim",
+  "profile_status": "completed",
+  "profile_viewport": "(691, 464)",
+  "profile_cells": [
+    {
+      "name": "Home_Day",
+      "loaded_rock_cells": 42
+    },
+    {
+      "name": "Wreck_Day",
+      "loaded_rock_cells": 45
+    },
+    {
+      "name": "Ruin_Day",
+      "loaded_rock_cells": 38
+    },
+    {
+      "name": "Cruiser_Day",
+      "loaded_rock_cells": 37
+    },
+    {
+      "name": "Home_Night",
+      "loaded_rock_cells": 42
+    },
+    {
+      "name": "Cruiser_Storm",
+      "loaded_rock_cells": 37
+    },
+    {
+      "name": "Far_Corner",
+      "loaded_rock_cells": 15
+    }
+  ],
+  "package_build": "BuildCookRun successful; AutomationTool exit code 0",
+  "human_acceptance": "Pending Docs/Phase2_Playtest_Checklist.md",
+  "packaged_smoke": {
+    "status": "passed",
+    "resolution": "1920x1080",
+    "scalability": "High",
+    "map": "L_Dustfall_Foundation",
+    "rhi": "D3D12 SM6",
+    "physical_checks": "V first-person and F flashlight visually observed",
+    "captured_frames": 6000,
+    "warmup_discarded": 600,
+    "exit_status": 0,
+    "limitation": "Stationary home haze/afternoon; cold PSO hitches and later waits; user acceptance pending"
+  }
+}

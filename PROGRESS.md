@@ -42,9 +42,21 @@ CommonUI requires Unreal's generated temporary launch target for packaging;
 it remains under ignored Intermediate/Binaries, with no native gameplay Source
 module. MCP is restricted to Editor targets because its descriptor is NoRedist.
 
-Next: finish frame-time/streaming capture and packaged runtime smoke validation.
-Stable 60+ FPS on representative mid-range hardware is not established. See
-Docs/Phase2_Validation.md for evidence and remaining limits. Unrelated
+Finalization: accepted visually denser storm fog (1.0), re-ran the full runtime
+environment suite successfully, and packaged the exact saved content into
+Builds/Phase2/Windows. Completed seven-location final editor CSV profiling and
+streaming counts: 15–45 loaded rock cells, frame median about 16.67 ms, p95
+17.465–19.618 ms at 691×464 High. Isolated spikes remain; this is not a 1080p
+or representative target-hardware guarantee. Added a 1080p High playtest launcher,
+reproducible packaging script, CSV analyzer, user checklist and Phase 3 handoff.
+Packaged startup, default map/GameMode, physical V/F and clean profiler exit passed.
+1080p High capture (5,400 frames after warmup): median 16.652 ms, p95 18.839 ms,
+p99 20.622 ms, maximum 107.442 ms; GPU median 4.093 ms. Cold PSO creation hitches
+and later waits remain a documented performance limitation, not a stable-60 claim.
+
+Next: user acceptance using Docs/Phase2_Playtest_Checklist.md, then Phase 3 per
+HANDOFF_Phase3.md. Stable 60+ FPS on representative mid-range hardware is not
+established. See Docs/Phase2_Validation.md for evidence and remaining limits. Unrelated
 Content/Megascans_8k imports and the source ZIP in Content remain outside this module.
 
 ## 2026-11-10 — Phase 1: Core Foundation

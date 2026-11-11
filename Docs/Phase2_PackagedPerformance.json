@@ -1,0 +1,39 @@
+{
+  "scope": "Observed workstation capture; not representative mid-range certification",
+  "captures": [
+    {
+      "file": "Profile(20261111_183624).csv",
+      "discarded_warmup_frames": 600,
+      "timings_ms": {
+        "FrameTime": {
+          "samples": 5400,
+          "median": 16.652,
+          "p95": 18.839,
+          "p99": 20.622,
+          "max": 107.442
+        },
+        "GameThreadTime": {
+          "samples": 5400,
+          "median": 2.206,
+          "p95": 4.228,
+          "p99": 5.69,
+          "max": 92.611
+        },
+        "RenderThreadTime": {
+          "samples": 5400,
+          "median": 16.644,
+          "p95": 18.805,
+          "p99": 20.613,
+          "max": 105.007
+        },
+        "GPUTime": {
+          "samples": 5400,
+          "median": 4.093,
+          "p95": 6.138,
+          "p99": 7.067,
+          "max": 8.164
+        }
+      }
+    }
+  ]
+}

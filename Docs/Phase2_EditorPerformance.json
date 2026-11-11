@@ -1,0 +1,243 @@
+{
+  "scope": "Observed workstation capture; not representative mid-range certification",
+  "captures": [
+    {
+      "file": "Phase2_Home_Day.csv",
+      "discarded_warmup_frames": 0,
+      "timings_ms": {
+        "FrameTime": {
+          "samples": 600,
+          "median": 16.684,
+          "p95": 17.815,
+          "p99": 18.758,
+          "max": 79.643
+        },
+        "GameThreadTime": {
+          "samples": 600,
+          "median": 6.954,
+          "p95": 8.675,
+          "p99": 9.998,
+          "max": 79.732
+        },
+        "RenderThreadTime": {
+          "samples": 600,
+          "median": 16.649,
+          "p95": 17.643,
+          "p99": 18.378,
+          "max": 19.397
+        },
+        "GPUTime": {
+          "samples": 600,
+          "median": 2.479,
+          "p95": 3.246,
+          "p99": 3.457,
+          "max": 3.826
+        }
+      }
+    },
+    {
+      "file": "Phase2_Wreck_Day.csv",
+      "discarded_warmup_frames": 0,
+      "timings_ms": {
+        "FrameTime": {
+          "samples": 600,
+          "median": 16.67,
+          "p95": 17.465,
+          "p99": 17.83,
+          "max": 20.348
+        },
+        "GameThreadTime": {
+          "samples": 600,
+          "median": 6.325,
+          "p95": 7.606,
+          "p99": 8.307,
+          "max": 12.395
+        },
+        "RenderThreadTime": {
+          "samples": 600,
+          "median": 16.667,
+          "p95": 17.375,
+          "p99": 17.776,
+          "max": 18.212
+        },
+        "GPUTime": {
+          "samples": 600,
+          "median": 2.294,
+          "p95": 2.524,
+          "p99": 2.596,
+          "max": 2.707
+        }
+      }
+    },
+    {
+      "file": "Phase2_Ruin_Day.csv",
+      "discarded_warmup_frames": 0,
+      "timings_ms": {
+        "FrameTime": {
+          "samples": 600,
+          "median": 16.684,
+          "p95": 18.314,
+          "p99": 19.942,
+          "max": 21.494
+        },
+        "GameThreadTime": {
+          "samples": 600,
+          "median": 7.043,
+          "p95": 8.959,
+          "p99": 10.606,
+          "max": 13.364
+        },
+        "RenderThreadTime": {
+          "samples": 600,
+          "median": 16.705,
+          "p95": 18.198,
+          "p99": 19.9,
+          "max": 21.384
+        },
+        "GPUTime": {
+          "samples": 600,
+          "median": 2.202,
+          "p95": 2.462,
+          "p99": 3.266,
+          "max": 3.847
+        }
+      }
+    },
+    {
+      "file": "Phase2_Cruiser_Day.csv",
+      "discarded_warmup_frames": 0,
+      "timings_ms": {
+        "FrameTime": {
+          "samples": 600,
+          "median": 16.67,
+          "p95": 17.712,
+          "p99": 18.328,
+          "max": 20.705
+        },
+        "GameThreadTime": {
+          "samples": 600,
+          "median": 6.913,
+          "p95": 8.759,
+          "p99": 10.178,
+          "max": 13.862
+        },
+        "RenderThreadTime": {
+          "samples": 600,
+          "median": 16.655,
+          "p95": 17.581,
+          "p99": 18.268,
+          "max": 19.088
+        },
+        "GPUTime": {
+          "samples": 600,
+          "median": 2.253,
+          "p95": 2.44,
+          "p99": 2.496,
+          "max": 2.624
+        }
+      }
+    },
+    {
+      "file": "Phase2_Home_Night.csv",
+      "discarded_warmup_frames": 0,
+      "timings_ms": {
+        "FrameTime": {
+          "samples": 600,
+          "median": 16.672,
+          "p95": 18.745,
+          "p99": 20.558,
+          "max": 21.657
+        },
+        "GameThreadTime": {
+          "samples": 600,
+          "median": 7.026,
+          "p95": 8.877,
+          "p99": 9.987,
+          "max": 13.209
+        },
+        "RenderThreadTime": {
+          "samples": 600,
+          "median": 16.655,
+          "p95": 18.665,
+          "p99": 20.357,
+          "max": 21.387
+        },
+        "GPUTime": {
+          "samples": 600,
+          "median": 2.187,
+          "p95": 2.448,
+          "p99": 3.278,
+          "max": 3.678
+        }
+      }
+    },
+    {
+      "file": "Phase2_Cruiser_Storm.csv",
+      "discarded_warmup_frames": 0,
+      "timings_ms": {
+        "FrameTime": {
+          "samples": 600,
+          "median": 16.66,
+          "p95": 19.618,
+          "p99": 20.881,
+          "max": 61.712
+        },
+        "GameThreadTime": {
+          "samples": 600,
+          "median": 7.515,
+          "p95": 9.654,
+          "p99": 11.552,
+          "max": 59.635
+        },
+        "RenderThreadTime": {
+          "samples": 600,
+          "median": 16.637,
+          "p95": 19.31,
+          "p99": 20.629,
+          "max": 21.117
+        },
+        "GPUTime": {
+          "samples": 600,
+          "median": 2.261,
+          "p95": 2.627,
+          "p99": 3.319,
+          "max": 3.861
+        }
+      }
+    },
+    {
+      "file": "Phase2_Far_Corner.csv",
+      "discarded_warmup_frames": 0,
+      "timings_ms": {
+        "FrameTime": {
+          "samples": 600,
+          "median": 16.683,
+          "p95": 19.313,
+          "p99": 20.541,
+          "max": 22.545
+        },
+        "GameThreadTime": {
+          "samples": 600,
+          "median": 6.624,
+          "p95": 8.556,
+          "p99": 9.992,
+          "max": 13.667
+        },
+        "RenderThreadTime": {
+          "samples": 600,
+          "median": 16.675,
+          "p95": 19.162,
+          "p99": 20.494,
+          "max": 22.604
+        },
+        "GPUTime": {
+          "samples": 600,
+          "median": 2.023,
+          "p95": 2.515,
+          "p99": 3.302,
+          "max": 3.975
+        }
+      }
+    }
+  ]
+}
