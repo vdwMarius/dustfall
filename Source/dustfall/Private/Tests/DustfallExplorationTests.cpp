@@ -53,9 +53,14 @@ bool FDustfallSaveMigrationTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("New valid distinct IDs"),Output->BeaconRecords[0].Id.IsValid() && Output->BeaconRecords[0].Id!=Output->BeaconRecords[1].Id);
     TestEqual(TEXT("Location preserved"),Output->BeaconRecords[1].Location,Input->Beacons[1]);
     TestEqual(TEXT("Payload preserved"),Output->Inventory.FindRef(TEXT("Scrap")),7);
+    TestTrue(TEXT("Old save has default timestamp"),Output->SavedAt==FDateTime());
+    Input->SavedAt=FDateTime(2026,11,13,21,14,7);
+    TestTrue(TEXT("Timestamp migration accepted"),UDustfallExplorationSave::ValidateAndMigrate(*Input,*Output));
+    TestTrue(TEXT("Timestamp copied"),Output->SavedAt==Input->SavedAt);
     const FGuid InitialId=Output->BeaconRecords[0].Id;
     TestTrue(TEXT("v3 round trip in place"),UDustfallExplorationSave::ValidateAndMigrate(*Output,*Output));
     TestEqual(TEXT("Stable ID retained"),Output->BeaconRecords[0].Id,InitialId);
+    TestTrue(TEXT("Timestamp retained in place"),Output->SavedAt==Input->SavedAt);
     FFloatProperty* Strain=FindFProperty<FFloatProperty>(UDustfallExplorationSave::StaticClass(),TEXT("PrivateStrain"));
     if (!TestNotNull(TEXT("Private strain property exists"),Strain)) return false;
     double UDustfallExplorationSave::* Resources[]={&UDustfallExplorationSave::Oxygen,&UDustfallExplorationSave::Power,

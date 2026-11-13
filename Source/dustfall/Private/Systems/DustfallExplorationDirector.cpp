@@ -278,19 +278,23 @@ void ADustfallExplorationDirector::SetSymptomIntensity(float Value)
 }
 bool ADustfallExplorationDirector::SaveExploration()
 {
+    bLastSaveSucceeded=false;
     if (!SurvivalDirector || !Player(this)) return false;
     auto* Save = Cast<UDustfallExplorationSave>(UGameplayStatics::CreateSaveGameObject(UDustfallExplorationSave::StaticClass()));
+    if (!Save) return false;
+    Save->SavedAt=FDateTime::Now();
     Save->Inventory=Inventory; Save->RecoveryInventory=RecoveryInventory; Save->ClaimedNodes=ClaimedNodes; Save->Journal=Journal; Save->Beacons=Beacons; Save->BeaconRecords=BeaconRecords;
     Save->PrivateStrain=PrivateStrain; Save->SymptomIntensity=SymptomIntensity;
     Save->PlayerLocation=Player(this)->GetActorLocation(); Save->CrateLocation=VectorValue(SurvivalDirector,TEXT("CrateLocation"));
     Save->bCrateActive=SuitValue(TEXT("CrateActive")) != 0; Save->CloneGeneration=int32(SuitValue(TEXT("CloneGeneration")));
     Save->Oxygen=SuitValue(TEXT("Oxygen")); Save->Power=SuitValue(TEXT("Power")); Save->Integrity=SuitValue(TEXT("Integrity")); Save->Stamina=SuitValue(TEXT("Stamina"));
     bLastSaveSucceeded=UGameplayStatics::SaveGameToSlot(Save,SaveSlot(),0);
-    if (bLastSaveSucceeded) CallSurvival(TEXT("SaveProgress"));
+    if (bLastSaveSucceeded) { LastSavedAt=Save->SavedAt; CallSurvival(TEXT("SaveProgress")); }
     return bLastSaveSucceeded;
 }
 bool ADustfallExplorationDirector::LoadExploration()
 {
+    LastLoadedAt=FDateTime();
     if (!SurvivalDirector || !Player(this)) return false;
     const bool bExists=UGameplayStatics::DoesSaveGameExist(SaveSlot(),0);
     auto* Save=Cast<UDustfallExplorationSave>(bExists ? UGameplayStatics::LoadGameFromSlot(SaveSlot(),0) : nullptr);
@@ -308,6 +312,7 @@ bool ADustfallExplorationDirector::LoadExploration()
         auto* Validated=NewObject<UDustfallExplorationSave>();
         if (!UDustfallExplorationSave::ValidateAndMigrate(*Save,*Validated)) { StatusMessage=TEXT("Invalid exploration save; session retained."); return false; }
         Save=Validated;
+        LastLoadedAt=Save->SavedAt;
         Inventory=Save->Inventory; RecoveryInventory=Save->RecoveryInventory; ClaimedNodes=Save->ClaimedNodes; Journal=Save->Journal; BeaconRecords=Save->BeaconRecords; Beacons.Empty();
         for (const auto& Record : BeaconRecords) Beacons.Add(Record.Location);
         PrivateStrain=FMath::Clamp(Save->PrivateStrain,0.f,100.f); SetSymptomIntensity(Save->SymptomIntensity);
@@ -330,6 +335,10 @@ void ADustfallExplorationDirector::Tick(float DeltaSeconds)
         if (Age>Tuning->FirstLoadDelay && SurvivalDirector && Player(this)) { LoadExploration(); bInitialized=true; }
         return;
     }
+    ManualMessageRemaining=FMath::Max(0.f,ManualMessageRemaining-DeltaSeconds);
+    if (ManualMessageRemaining<=0) ManualSaveLoadMessage.Empty();
+    AutosaveMessageRemaining=FMath::Max(0.f,AutosaveMessageRemaining-DeltaSeconds);
+    if (AutosaveMessageRemaining<=0) AutosaveMessage.Empty();
     SynchronizeSurvival();
     ScannerRemaining=FMath::Max(0.f,ScannerRemaining-DeltaSeconds); ScannerCooldownRemaining=FMath::Max(0.f,ScannerCooldownRemaining-DeltaSeconds);
     const bool bHome=SuitValue(TEXT("InHabitat")) != 0;
@@ -355,13 +364,33 @@ void ADustfallExplorationDirector::Tick(float DeltaSeconds)
         if (Pressed(2, EKeys::Q)) PulseScanner();
         if (Pressed(3, EKeys::B)) PlaceBeacon();
         if (Pressed(4, EKeys::E)) Interact();
-        if (Pressed(5, EKeys::F5)) { SaveExploration(); StatusMessage=bLastSaveSucceeded ? TEXT("Progress saved.") : TEXT("Save failed."); }
-        if (Pressed(6, EKeys::F9)) { const bool bLoaded=LoadExploration(); StatusMessage=bLoaded ? TEXT("Progress loaded.") : TEXT("Load failed; current exploration session retained."); }
+        if (Pressed(5, EKeys::F5))
+        {
+            const bool bSaved=SaveExploration();
+            ManualSaveLoadMessage=bSaved ? FString::Printf(TEXT("Progress saved %s - clone %03d, %d items."),*LastSavedAt.ToString(TEXT("%H:%M:%S")),int32(SuitValue(TEXT("CloneGeneration"))),InventoryCount()) : TEXT("Save FAILED - progress not written.");
+            ManualMessageRemaining=FMath::Max(4.f,Tuning->ManualSaveLoadMessageDuration);
+        }
+        if (Pressed(6, EKeys::F9))
+        {
+            const bool bLoaded=LoadExploration();
+            if (!bLoaded) ManualSaveLoadMessage=TEXT("Load failed; current exploration session retained.");
+            else if (LastLoadedAt==FDateTime()) ManualSaveLoadMessage=TEXT("Loaded older save (no timestamp).");
+            else
+            {
+                const TCHAR* Months[]={TEXT("Jan"),TEXT("Feb"),TEXT("Mar"),TEXT("Apr"),TEXT("May"),TEXT("Jun"),TEXT("Jul"),TEXT("Aug"),TEXT("Sep"),TEXT("Oct"),TEXT("Nov"),TEXT("Dec")};
+                ManualSaveLoadMessage=FString::Printf(TEXT("Loaded save from %02d %s %s - clone %03d."),LastLoadedAt.GetDay(),Months[LastLoadedAt.GetMonth()-1],*LastLoadedAt.ToString(TEXT("%H:%M")),int32(SuitValue(TEXT("CloneGeneration"))));
+            }
+            ManualMessageRemaining=FMath::Max(4.f,Tuning->ManualSaveLoadMessageDuration);
+        }
         if (Pressed(7, EKeys::F8)) { SetSymptomIntensity(SymptomIntensity>0 ? 0 : 1); SaveExploration(); StatusMessage=SymptomIntensity>0 ? TEXT("Subtle symptoms enabled.") : TEXT("Symptoms disabled."); }
     }
     PendingInputActions = 0;
     SaveElapsed+=DeltaSeconds;
-    if (SaveElapsed>=Tuning->AutosaveInterval) { SaveExploration(); SaveElapsed=0; }
+    if (SaveElapsed>=Tuning->AutosaveInterval)
+    {
+        if (SaveExploration()) { AutosaveMessage=FString::Printf(TEXT("Autosaved %s."),*LastSavedAt.ToString(TEXT("%H:%M"))); AutosaveMessageRemaining=Tuning->AutosaveMessageDuration; }
+        SaveElapsed=0;
+    }
 }
 
 void ADustfallExplorationDirector::SetStrainModifier(FName Source,float Multiplier) { StrainModifiers.Set(Source,Multiplier); }

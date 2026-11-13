@@ -68,6 +68,15 @@ void ADustfallExplorationHUD::DrawHUD()
     }
     if(auto* Node=D->NearestNode()) Text(TEXT("E  ")+Node->DisplayName,W*.5f-100,H*.68f,1,Amber);
     Text(D->StatusMessage,22,H-84,.8f);
+    if (!D->AutosaveMessage.IsEmpty()) Text(D->AutosaveMessage,22,H-110,.8f,Cyan);
+    if (!D->ManualSaveLoadMessage.IsEmpty())
+    {
+        float TextWidth=0, TextHeight=0;
+        GetTextSize(D->ManualSaveLoadMessage,TextWidth,TextHeight,nullptr,1.25f);
+        const float X=FMath::Max(12.f,(W-TextWidth)*.5f);
+        Panel(X-12,76,TextWidth+24,TextHeight+16);
+        Text(D->ManualSaveLoadMessage,X,84,1.25f,Cyan);
+    }
     Text(TEXT("Q SCAN   E INTERACT   TAB INVENTORY   J JOURNAL   B BEACON   F5 SAVE / F9 LOAD   F8 SYMPTOMS"),22,H-56,.7f);
     Text(TEXT("F LIGHT   V VIEW   SHIFT SPRINT    /    Survival continues while reading"),22,H-34,.7f);
     if(D->bInventoryOpen)
