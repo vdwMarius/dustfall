@@ -10,6 +10,20 @@ struct DUSTFALL_API FDustfallModifierStack
         Modifiers.Add(Source, Multiplier); return true;
     }
     void Clear(FName Source) { Modifiers.Remove(Source); }
+    /** Double precision path for suit rates; an empty stack preserves the base exactly. */
+    double EvaluateDouble(double Base) const
+    {
+        if (!FMath::IsFinite(Base) || Base <= 0) return 0;
+        TArray<FName> Keys; Modifiers.GetKeys(Keys); Keys.Sort(FNameLexicalLess());
+        for (FName Key : Keys) if (Modifiers[Key] == 0) return 0;
+        double Result = Base;
+        for (FName Key : Keys)
+        {
+            Result *= double(Modifiers[Key]);
+            if (!FMath::IsFinite(Result)) Result = TNumericLimits<double>::Max();
+        }
+        return Result;
+    }
     float Evaluate(float Base) const
     {
         if (!FMath::IsFinite(Base) || Base <= 0) return 0;

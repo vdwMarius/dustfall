@@ -2,6 +2,7 @@
 #include "CoreMinimal.h"
 namespace DustfallSurvivalBridge
 {
+    // Native directors use typed access; legacy Blueprint actors retain reflection access.
     double Number(const UObject* Object, FName Name);
     void SetNumber(UObject* Object, FName Name, double Value);
     FVector VectorValue(const UObject* Object, FName Name);
