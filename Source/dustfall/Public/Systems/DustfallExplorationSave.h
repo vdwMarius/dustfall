@@ -17,6 +17,7 @@ class DUSTFALL_API UDustfallExplorationSave : public USaveGame
     GENERATED_BODY()
 public:
     UPROPERTY(SaveGame) int32 Version = 3;
+    UPROPERTY(SaveGame) FDateTime SavedAt;
     UPROPERTY(SaveGame) TMap<FName, int32> Inventory;
     UPROPERTY(SaveGame) TMap<FName, int32> RecoveryInventory;
     UPROPERTY(SaveGame) TSet<FName> ClaimedNodes;

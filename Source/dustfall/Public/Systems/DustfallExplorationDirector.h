@@ -31,6 +31,8 @@ public:
     UPROPERTY(BlueprintReadOnly) bool bJournalOpen = false;
     UPROPERTY(BlueprintReadOnly) bool bLastSaveSucceeded = false;
     UPROPERTY(BlueprintReadOnly) FString StatusMessage;
+    UPROPERTY(BlueprintReadOnly) FString ManualSaveLoadMessage;
+    UPROPERTY(BlueprintReadOnly) FString AutosaveMessage;
     UPROPERTY(BlueprintReadOnly) FString ActiveLore;
     UPROPERTY(BlueprintReadOnly) float ScannerRemaining = 0;
     UFUNCTION(BlueprintCallable) void SetStrainModifier(FName Source, float Multiplier);
@@ -81,6 +83,10 @@ private:
     float SymptomElapsed = 0;
     float ScannerCooldownRemaining = 0;
     float SaveElapsed = 0;
+    float ManualMessageRemaining = 0;
+    float AutosaveMessageRemaining = 0;
+    FDateTime LastSavedAt;
+    FDateTime LastLoadedAt;
     float Age = 0;
     bool bInitialized = false;
     bool bPreviousCrateActive = false;

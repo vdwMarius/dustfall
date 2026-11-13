@@ -52,6 +52,8 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly) float BeaconRecoverRange = 300;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) float CrateRecoverRange = 250;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) float AutosaveInterval = 30;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="4.0")) float ManualSaveLoadMessageDuration = 4.f;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="0.0")) float AutosaveMessageDuration = 2.f;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) float FirstLoadDelay = .35f;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) float StormStrainMultiplier = .045f / .035f;
     UPROPERTY(EditAnywhere, BlueprintReadOnly) float LowSuitStrainMultiplier = (.035f + .08f) / .035f;

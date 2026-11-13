@@ -34,6 +34,7 @@ bool UDustfallExplorationSave::ValidateAndMigrate(const UDustfallExplorationSave
         Records=Input.BeaconRecords;
     }
     // All checks precede writes, including when Input and Output alias.
+    Output.SavedAt=Input.SavedAt;
     Output.Inventory=Input.Inventory; Output.RecoveryInventory=Input.RecoveryInventory;
     Output.ClaimedNodes=Input.ClaimedNodes; Output.Journal=Input.Journal;
     Output.PrivateStrain=FMath::Clamp(Input.PrivateStrain,0.f,100.f);
