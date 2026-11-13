@@ -1,0 +1,436 @@
+#if WITH_EDITOR
+#include "World/DustfallTerrainMath.h"
+#include "Landscape.h"
+#include "LandscapeInfo.h"
+#include "LandscapeEdit.h"
+#include "LandscapeEditLayer.h"
+#include "LandscapeComponent.h"
+#include "Engine/World.h"
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "HAL/FileManager.h"
+
+namespace DustfallTerrainV2
+{
+using Math = FDustfallTerrainMath;
+using Object = TSharedPtr<FJsonObject>;
+using Value = TSharedPtr<FJsonValue>;
+double N(const Object& O, const TCHAR* Key) { return O->GetNumberField(Key); }
+FString S(const Object& O, const TCHAR* Key) { return O->GetStringField(Key); }
+TArray<double> Numbers(const Object& O, const TCHAR* Key)
+{
+    TArray<double> Result;
+    for (const Value& V : O->GetArrayField(Key)) Result.Add(V->AsNumber());
+    return Result;
+}
+TArray<FVector2D> Points(const Object& O, const TCHAR* Key)
+{
+    TArray<FVector2D> Result;
+    for (const Value& V : O->GetArrayField(Key))
+    {
+        const auto& A=V->AsArray(); Result.Emplace(A[0]->AsNumber(),A[1]->AsNumber());
+    }
+    return Result;
+}
+Value Number(double X) { return MakeShared<FJsonValueNumber>(X); }
+Value Array(const TArray<Value>& X) { return MakeShared<FJsonValueArray>(X); }
+Value Obj(const Object& X) { return MakeShared<FJsonValueObject>(X); }
+bool Save(const Object& O, const FString& Path)
+{
+    FString Text;
+    if (!FJsonSerializer::Serialize(O.ToSharedRef(),TJsonWriterFactory<>::Create(&Text))) return false;
+    IFileManager::Get().MakeDirectory(*FPaths::GetPath(Path),true);
+    return FFileHelper::SaveStringToFile(Text,*Path,FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+}
+double Length(const TArray<FVector2D>& Line)
+{
+    double Total=0; for (int32 I=1; I<Line.Num(); ++I) Total+=(Line[I]-Line[I-1]).Size(); return Total;
+}
+double Gaussian(const FVector2D& P, const TArray<double>& A)
+{
+    const double C=FMath::Cos(A[5]), Sine=FMath::Sin(A[5]);
+    const FVector2D D=P-FVector2D(A[0],A[1]);
+    return FMath::Exp(-2.*(FMath::Square((D.X*C+D.Y*Sine)/A[2])+FMath::Square((-D.X*Sine+D.Y*C)/A[3])));
+}
+struct FFeature
+{
+    Object Data;
+    FString Id, Type, Stage;
+    TArray<double> Params, Rim, Floor, Target;
+    TArray<FVector2D> Line, Samples, North, South, Wall;
+    double Total=0;
+};
+struct FGrid
+{
+    int32 X1=0,Y1=0,X2=0,Y2=0,W=0,H=0;
+    FTransform Transform;
+    TArray<double> Z, Base;
+    FVector2D World(int32 X, int32 Y) const
+    {
+        const FVector P=Transform.TransformPosition(FVector(X,Y,0)); return FVector2D(P.X,P.Y);
+    }
+    double Sample(const FVector2D& P) const
+    {
+        const FVector Q=Transform.InverseTransformPosition(FVector(P.X,P.Y,Transform.GetLocation().Z));
+        const double X=FMath::Clamp(Q.X-X1,0.,double(W-1)), Y=FMath::Clamp(Q.Y-Y1,0.,double(H-1));
+        const int32 IX=FMath::Min(FMath::FloorToInt(X),W-2), IY=FMath::Min(FMath::FloorToInt(Y),H-2);
+        return FMath::Lerp(FMath::Lerp(Z[IY*W+IX],Z[IY*W+IX+1],X-IX),
+            FMath::Lerp(Z[(IY+1)*W+IX],Z[(IY+1)*W+IX+1],X-IX),Y-IY);
+    }
+    bool Contains(const FVector2D& P) const
+    {
+        const FVector Q=Transform.InverseTransformPosition(FVector(P.X,P.Y,Transform.GetLocation().Z));
+        return Q.X>=X1 && Q.X<=X2 && Q.Y>=Y1 && Q.Y<=Y2;
+    }
+};
+double Relief(const FFeature& F, const FVector2D& P)
+{
+    const auto& A=F.Params;
+    if (F.Type==TEXT("gaussian_hill") || F.Type==TEXT("spire_base")) return A[4]*Gaussian(P,A);
+    if (F.Type==TEXT("ridged_noise"))
+    {
+        if (A.Num()==7) return A[0]*FMath::Pow(FMath::Max(0.,FMath::Sin(P.X*A[1]+FMath::Sin(P.Y*A[2]))),A[3])*(A[4]+A[5]*FMath::Abs(FMath::Sin(P.Y*A[6])));
+        const TArray<double> G={A[1],A[2],A[3],A[4],1,A[5]};
+        return A[0]*Gaussian(P,G)*FMath::Abs(FMath::Sin(P.X*A[6]+P.Y*A[7]));
+    }
+    if (F.Type==TEXT("ravine"))
+    {
+        const double Y=A[0]+A[1]*FMath::Sin((P.X-A[2])*A[3]);
+        return -A[9]*FMath::Exp(-FMath::Pow((P.X-A[4])/A[5],A[6]))*
+            FMath::Exp(-FMath::Square((P.Y-Y)/(P.Y>Y?A[7]:A[8]))*A[10]);
+    }
+    if (F.Type==TEXT("crater"))
+    {
+        const double R=(P-FVector2D(A[0],A[1])).Size();
+        return A[2]*FMath::Exp(-FMath::Square((R-A[3])/A[4]))-A[5]*FMath::Exp(-FMath::Square(R/A[6]));
+    }
+    if (F.Type==TEXT("pit"))
+    {
+        const TArray<double> Ramp={A[6],A[7],A[8],A[9],1,A[10]};
+        return -A[2]*(1-Math::Smooth(A[3],A[4],(P-FVector2D(A[0],A[1])).Size()))+A[5]*Gaussian(P,Ramp);
+    }
+    const auto Q=Math::Project(P,F.Line);
+    const double T=Q.Arc/F.Total;
+    double EndWidth=N(F.Data,TEXT("end_blend_cm"));
+    if (F.Type==TEXT("escarpment"))
+        EndWidth=FMath::Lerp(EndWidth,N(F.Data,TEXT("plateau_blend_cm")),
+            Math::Smooth(0,N(F.Data,TEXT("face_width_cm")),Q.SignedDistance*N(F.Data,TEXT("high_side"))));
+    const double End=Math::Smooth(0,EndWidth,Q.Arc)*Math::Smooth(0,EndWidth,F.Total-Q.Arc);
+    if (F.Type==TEXT("canyon"))
+    {
+        const double Rim=FMath::Lerp(F.Rim[0],F.Rim[1],T)*.5, Floor=FMath::Lerp(F.Floor[0],F.Floor[1],T)*.5;
+        const double Cross=(Q.Distance-Floor)/(Rim-Floor);
+        return -N(F.Data,TEXT("depth_cm"))*(1-Math::Wall(Cross,Q.SignedDistance>=0?F.North:F.South))*End;
+    }
+    if (F.Type==TEXT("escarpment"))
+    {
+        const double D=Q.SignedDistance*N(F.Data,TEXT("high_side"));
+        const double Face=N(F.Data,TEXT("face_width_cm")), Talus=N(F.Data,TEXT("talus_width_cm"));
+        // Broad high-side plateau, flat low side; rise is a step, never a narrow Gaussian spike.
+        double Rise=Math::Wall((D+Talus)/(Talus+Face),F.Wall);
+        if (D>Face) Rise=1; // Sustained plateau, including the far dense field.
+        return (N(F.Data,TEXT("drop_cm"))*Rise+N(F.Data,TEXT("vertical_offset_cm")))*End;
+    }
+    return 0;
+}
+}
+
+FString DustfallAuthorTerrainV2(AActor* Actor, const FString& BaselineFile, const FString& FeaturesFile, const FString& ReportFile)
+{
+    using namespace DustfallTerrainV2;
+    Object Report=MakeShared<FJsonObject>();
+    auto Fail=[&](const FString& Error) { Report->SetStringField(TEXT("status"),TEXT("failed")); Report->SetStringField(TEXT("error"),Error); Save(Report,ReportFile); return TEXT("ERROR: ")+Error; };
+    ALandscape* Landscape=Cast<ALandscape>(Actor);
+    if (!Landscape || !Landscape->GetWorld() || Landscape->GetWorld()->IsGameWorld()) return Fail(TEXT("Requires editor Landscape, PIE stopped"));
+    FGrid G; ULandscapeInfo* Info=Landscape->GetLandscapeInfo();
+    if (!Info || !Info->GetLandscapeExtent(G.X1,G.Y1,G.X2,G.Y2)) return Fail(TEXT("No loaded landscape extent"));
+    G.W=G.X2-G.X1+1; G.H=G.Y2-G.Y1+1; G.Transform=Landscape->LandscapeActorToWorld();
+    if (G.W<2 || G.H<2 || int64(G.W)*G.H>20000000 || !G.Transform.GetRotation().Equals(FQuat::Identity)) return Fail(TEXT("Invalid extent or rotated landscape"));
+    const FVector Scale=G.Transform.GetScale3D();
+    if (Scale.X<=0 || Scale.Y<=0 || Scale.Z<=0) return Fail(TEXT("Landscape scales must be positive"));
+    FString Text; Object Root;
+    if (!FFileHelper::LoadFileToString(Text,*FeaturesFile) || !FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text),Root) || !Root) return Fail(TEXT("Cannot read features JSON"));
+    if (!Root->HasTypedField<EJson::Number>(TEXT("schema_version")) || N(Root,TEXT("schema_version"))!=2 || S(Root,TEXT("units"))!=TEXT("cm")) return Fail(TEXT("Expected v2 schema in centimetres"));
+    if (!Root->HasTypedField<EJson::Array>(TEXT("features")) || !Root->HasTypedField<EJson::Object>(TEXT("resolved"))) return Fail(TEXT("Run build_phase5_terrain.py to validate and resolve schema/routes first"));
+    const Object Resolved=Root->GetObjectField(TEXT("resolved"));
+    if (!Resolved->GetBoolField(TEXT("validated"))) return Fail(TEXT("Features not validated"));
+    const Object Protection=Root->GetObjectField(TEXT("protection")), Sampling=Root->GetObjectField(TEXT("sampling"));
+    TArray<FVector> Discs;
+    for (const Value& V : Resolved->GetArrayField(TEXT("discs_cm")))
+    {
+        const auto& A=V->AsArray(); Discs.Emplace(A[0]->AsNumber(),A[1]->AsNumber(),A[2]->AsNumber());
+    }
+    TArray<TArray<FVector2D>> Routes;
+    for (const Value& V : Resolved->GetArrayField(TEXT("routes"))) Routes.Add(Points(V->AsObject(),TEXT("line_cm")));
+    auto Guard=[&](const FVector2D& P)
+    {
+        double V=1;
+        for (const FVector& D:Discs) V=FMath::Min(V,Math::Smooth(D.Z,D.Z+N(Protection,TEXT("disc_blend_cm")),(P-FVector2D(D.X,D.Y)).Size()));
+        for (const auto& Line:Routes) V=FMath::Min(V,Math::Smooth(N(Protection,TEXT("route_inner_cm")),N(Protection,TEXT("route_outer_cm")),Math::Project(P,Line).Distance));
+        return V;
+    };
+    TArray<FFeature> Features;
+    for (const Value& V:Root->GetArrayField(TEXT("features")))
+    {
+        FFeature F; F.Data=V->AsObject(); F.Id=S(F.Data,TEXT("id")); F.Type=S(F.Data,TEXT("type")); F.Stage=S(F.Data,TEXT("stage"));
+        if (F.Data->HasField(TEXT("parameters"))) F.Params=Numbers(F.Data,TEXT("parameters"));
+        if (F.Data->HasField(TEXT("line_cm"))) { F.Line=Points(F.Data,TEXT("line_cm")); F.Total=Length(F.Line); }
+        if (F.Type==TEXT("canyon")) { F.Rim=Numbers(F.Data,TEXT("rim_width_cm")); F.Floor=Numbers(F.Data,TEXT("floor_width_cm")); F.North=Points(F.Data,TEXT("north_wall")); F.South=Points(F.Data,TEXT("south_wall")); }
+        if (F.Type==TEXT("escarpment")) F.Wall=Points(F.Data,TEXT("wall"));
+        Features.Add(MoveTemp(F));
+    }
+    const FLandscapeLayer* Layer=Landscape->GetLayerConst(0);
+    if (!Layer || !Layer->EditLayer) return Fail(TEXT("Landscape base edit layer missing"));
+    FLandscapeEditDataInterface Edit(Info,Layer->EditLayer->GetGuid());
+    TArray<uint8> Bytes;
+    const int32 Header[4]={G.X1,G.Y1,G.X2,G.Y2};
+    if (!FFileHelper::LoadFileToArray(Bytes,*BaselineFile) || Bytes.Num()!=16+G.W*G.H*2 || FMemory::Memcmp(Bytes.GetData(),Header,16)!=0) return Fail(TEXT("Exact baseline missing or extent mismatch; never create baseline from edited terrain"));
+    TArray<uint16> Baseline, Current, Output;
+    Baseline.SetNumUninitialized(G.W*G.H); FMemory::Memcpy(Baseline.GetData(),Bytes.GetData()+16,Baseline.Num()*2);
+    Current.SetNumUninitialized(Baseline.Num()); Edit.GetHeightDataFast(G.X1,G.Y1,G.X2,G.Y2,Current.GetData(),0);
+    G.Base.SetNumUninitialized(Baseline.Num()); G.Z.SetNumUninitialized(Baseline.Num());
+    for (int32 Y=G.Y1; Y<=G.Y2; ++Y) for (int32 X=G.X1; X<=G.X2; ++X)
+    {
+        const int32 I=(Y-G.Y1)*G.W+X-G.X1; const FVector2D P=G.World(X,Y);
+        G.Base[I]=(double(Baseline[I])-32768.)*Scale.Z/128.+G.Transform.GetLocation().Z;
+        double Delta=0;
+        for (const FFeature& F:Features) if (F.Stage!=TEXT("path")) Delta+=Relief(F,P);
+        G.Z[I]=G.Base[I]+Delta*Guard(P);
+    }
+    // Cut and fill sampled profiles. Paths conform to a Lipschitz grade envelope;
+    // descents pin actual rim/floor heights and reject an insufficient horizontal run.
+    const double Step=N(Sampling,TEXT("path_step_cm"));
+    for (FFeature& F:Features) if (F.Stage==TEXT("path"))
+    {
+        const int32 Count=FMath::CeilToInt(F.Total/Step);
+        for (int32 J=0; J<=Count; ++J)
+        {
+            const double Arc=F.Total*J/Count; const FVector2D P=Math::AtArc(F.Line,Arc);
+            if (!G.Contains(P)) return Fail(F.Id+TEXT(": path leaves landscape"));
+            F.Samples.Add(P); F.Target.Add(G.Sample(P)-N(F.Data,TEXT("sink_cm"))*Guard(P)*Math::Smooth(0,N(F.Data,TEXT("endpoint_blend_cm")),FMath::Min(Arc,F.Total-Arc)));
+        }
+        if (F.Type==TEXT("descent"))
+        {
+            const double First=F.Target[0], Last=F.Target.Last();
+            for (int32 J=0; J<F.Target.Num(); ++J) F.Target[J]=FMath::Lerp(First,Last,double(J)/Count);
+        }
+        // Reserve quantisation and raster interpolation margin; final output is tested below.
+        if (!Math::LimitGrade(F.Samples,F.Target,N(F.Data,TEXT("max_grade"))*N(Sampling,TEXT("grade_reserve")),true)) return Fail(F.Id+TEXT(": cannot connect endpoint heights within maximum grade; extend traverse"));
+        for (int32 Y=G.Y1; Y<=G.Y2; ++Y) for (int32 X=G.X1; X<=G.X2; ++X)
+        {
+            const FVector2D P=G.World(X,Y); const auto Q=Math::Project(P,F.Line);
+            const double Half=N(F.Data,TEXT("width_cm"))*.5, Shoulder=N(F.Data,TEXT("shoulder_cm"));
+            if (Q.Distance>Half+Shoulder+FMath::Sqrt(Scale.X*Scale.X+Scale.Y*Scale.Y)) continue;
+            const double U=Q.Arc/F.Total*Count; const int32 J=FMath::Min(FMath::FloorToInt(U),Count-1);
+            const double Target=FMath::Lerp(F.Target[J],F.Target[J+1],U-J);
+            const double RasterMargin=FMath::Sqrt(Scale.X*Scale.X+Scale.Y*Scale.Y);
+            const double Weight=1-Math::Smooth(Half+RasterMargin,Half+RasterMargin+Shoulder,Q.Distance);
+            const int32 I=(Y-G.Y1)*G.W+X-G.X1;
+            G.Z[I]=FMath::Lerp(G.Z[I],Target,Weight);
+        }
+    }
+    Output.SetNumUninitialized(Baseline.Num());
+    int32 Changed=0, ChangedCurrent=0, Clipped=0; double MinDelta=0,MaxDelta=0;
+    TArray<Value> ChangedTiles; TSet<FIntPoint> Tiles;
+    const double TileSize=N(Resolved,TEXT("pcg_cell_size_cm")), TileOrigin=N(Resolved,TEXT("pcg_origin_cm"));
+    for (int32 Y=G.Y1; Y<=G.Y2; ++Y) for (int32 X=G.X1; X<=G.X2; ++X)
+    {
+        const int32 I=(Y-G.Y1)*G.W+X-G.X1; const FVector2D P=G.World(X,Y);
+        if (Guard(P)==0) G.Z[I]=G.Base[I];
+        const double Encoded=(G.Z[I]-G.Transform.GetLocation().Z)*128./Scale.Z+32768.;
+        if (!FMath::IsFinite(Encoded) || Encoded<0 || Encoded>65535) { ++Clipped; continue; }
+        Output[I]=uint16(FMath::RoundToInt(Encoded));
+        G.Z[I]=(double(Output[I])-32768.)*Scale.Z/128.+G.Transform.GetLocation().Z;
+        MinDelta=FMath::Min(MinDelta,G.Z[I]-G.Base[I]); MaxDelta=FMath::Max(MaxDelta,G.Z[I]-G.Base[I]);
+        if (Output[I]!=Baseline[I]) ++Changed;
+        if (Output[I]!=Current[I])
+        {
+            ++ChangedCurrent;
+            Tiles.Add(FIntPoint(FMath::FloorToInt((P.X-TileOrigin)/TileSize),FMath::FloorToInt((P.Y-TileOrigin)/TileSize)));
+        }
+    }
+    Report->SetNumberField(TEXT("clipped_vertices"),Clipped);
+    if (Clipped) return Fail(TEXT("Feature exceeds uint16/ScaleZ height range; no landscape edited"));
+    Report->SetArrayField(TEXT("height_delta_range_cm"),{Number(MinDelta),Number(MaxDelta)});
+    Report->SetNumberField(TEXT("changed_vertex_count"),Changed);
+    Report->SetNumberField(TEXT("changed_from_current_vertex_count"),ChangedCurrent);
+    Report->SetNumberField(TEXT("height_quantisation_cm"),Scale.Z/128.);
+    TArray<FIntPoint> SortedTiles=Tiles.Array(); SortedTiles.Sort([](const FIntPoint& A,const FIntPoint& B){return A.X==B.X?A.Y<B.Y:A.X<B.X;});
+    for (const FIntPoint& Tile:SortedTiles) ChangedTiles.Add(Array({Number(Tile.X),Number(Tile.Y)}));
+    Report->SetArrayField(TEXT("changed_pcg_grid_cells"),ChangedTiles);
+    // One output slope pass shared by feature measurements; avoid resampling the
+    // same heightfield once per overlapping legacy mound.
+    TArray<float> OutputSlope; OutputSlope.SetNumUninitialized(G.Z.Num());
+    for (int32 Y=0; Y<G.H; ++Y) for (int32 X=0; X<G.W; ++X)
+    {
+        const int32 NX=FMath::Min(G.W-1,X+1), NY=FMath::Min(G.H-1,Y+1);
+        const double Z00=G.Z[Y*G.W+X],Z10=G.Z[Y*G.W+NX],Z01=G.Z[NY*G.W+X],Z11=G.Z[NY*G.W+NX];
+        const double A=FMath::Square((Z10-Z00)/Scale.X)+FMath::Square((Z01-Z00)/Scale.Y);
+        const double B=FMath::Square((Z11-Z01)/Scale.X)+FMath::Square((Z11-Z10)/Scale.Y);
+        OutputSlope[Y*G.W+X]=float(FMath::RadiansToDegrees(FMath::Atan(FMath::Sqrt(FMath::Max(A,B)))));
+    }
+    TArray<Value> Metrics, Paths;
+    bool bInvalid=false;
+    for (const FFeature& F:Features)
+    {
+        Object M=MakeShared<FJsonObject>(); M->SetStringField(TEXT("id"),F.Id); M->SetStringField(TEXT("type"),F.Type);
+        double Minimum=TNumericLimits<double>::Max(), Maximum=-TNumericLimits<double>::Max(), Slope=0;
+        double DeltaMin=TNumericLimits<double>::Max(),DeltaMax=-TNumericLimits<double>::Max();
+        if (F.Stage==TEXT("path"))
+        {
+            double Grade=0, CrossSlope=0, TargetError=0; TArray<Value> Polyline;
+            for (int32 J=0; J<F.Samples.Num(); ++J)
+            {
+                const FVector2D P=F.Samples[J]; const double Z=G.Sample(P);
+                Polyline.Add(Array({Number(P.X),Number(P.Y),Number(Z)}));
+                TargetError=FMath::Max(TargetError,FMath::Abs(Z-F.Target[J]));
+                if (J) Grade=FMath::Max(Grade,FMath::Abs(Z-G.Sample(F.Samples[J-1]))/(P-F.Samples[J-1]).Size());
+                const FVector2D T=Math::Project(P,F.Line).Tangent, Normal(-T.Y,T.X);
+                const double Half=N(F.Data,TEXT("width_cm"))*.5;
+                const int32 Across=FMath::CeilToInt(2*Half/Step);
+                double PreviousZ=G.Sample(P-Normal*Half);
+                for (int32 K=1; K<=Across; ++K)
+                {
+                    const double NextZ=G.Sample(P+Normal*(-Half+2*Half*K/Across));
+                    CrossSlope=FMath::Max(CrossSlope,FMath::Abs(NextZ-PreviousZ)/(2*Half/Across)); PreviousZ=NextZ;
+                }
+            }
+            M->SetNumberField(TEXT("maximum_profile_error_cm"),TargetError);
+            M->SetNumberField(TEXT("endpoint_connection_error_cm"),FMath::Max(
+                FMath::Abs(G.Sample(F.Samples[0])-F.Target[0]),FMath::Abs(G.Sample(F.Samples.Last())-F.Target.Last())));
+            M->SetNumberField(TEXT("maximum_grade"),Grade); M->SetNumberField(TEXT("maximum_cross_slope"),CrossSlope);
+            M->SetNumberField(TEXT("endpoint_drop_cm"),G.Sample(F.Samples[0])-G.Sample(F.Samples.Last()));
+            const bool bValid=TargetError<=Scale.Z/128.+N(Sampling,TEXT("profile_tolerance_cm")) && Grade<=N(F.Data,TEXT("max_grade")) && CrossSlope<=N(F.Data,TEXT("max_cross_slope")) && (F.Type!=TEXT("descent") || G.Sample(F.Samples[0])>G.Sample(F.Samples.Last()));
+            M->SetBoolField(TEXT("valid"),bValid); bInvalid|=!bValid;
+            Object Path=MakeShared<FJsonObject>(); Path->SetStringField(TEXT("id"),F.Id); Path->SetStringField(TEXT("type"),F.Type);
+            Path->SetNumberField(TEXT("width_cm"),N(F.Data,TEXT("width_cm"))); Path->SetArrayField(TEXT("polyline_cm"),Polyline); Paths.Add(Obj(Path));
+        }
+        else
+        {
+            // Scan each feature footprint, from OUTPUT (after protection/path carving).
+            for (int32 Y=G.Y1; Y<=G.Y2; ++Y) for (int32 X=G.X1; X<=G.X2; ++X)
+            {
+                const FVector2D P=G.World(X,Y);
+                if (FMath::Abs(Relief(F,P))<1) continue;
+                const double Z=G.Z[(Y-G.Y1)*G.W+X-G.X1]; Minimum=FMath::Min(Minimum,Z); Maximum=FMath::Max(Maximum,Z);
+                const double Delta=G.Z[(Y-G.Y1)*G.W+X-G.X1]-G.Base[(Y-G.Y1)*G.W+X-G.X1];
+                DeltaMin=FMath::Min(DeltaMin,Delta); DeltaMax=FMath::Max(DeltaMax,Delta);
+                Slope=FMath::Max(Slope,double(OutputSlope[(Y-G.Y1)*G.W+X-G.X1]));
+            }
+            if (F.Type==TEXT("canyon") || F.Type==TEXT("escarpment"))
+            {
+                double Measured=0;
+                const int32 Sections=FMath::CeilToInt(F.Total/N(Sampling,TEXT("probe_step_cm")));
+                for (int32 J=1; J<Sections; ++J)
+                {
+                    const double Arc=F.Total*J/Sections; const FVector2D P=Math::AtArc(F.Line,Arc);
+                    const auto Q=Math::Project(P,F.Line); const FVector2D Normal(-Q.Tangent.Y,Q.Tangent.X);
+                    double Drop=0;
+                    if (F.Type==TEXT("canyon"))
+                    {
+                        const double Half=FMath::Lerp(F.Rim[0],F.Rim[1],Arc/F.Total)*.5;
+                        Drop=FMath::Max(G.Sample(P+Normal*Half),G.Sample(P-Normal*Half))-G.Sample(P);
+                    }
+                    else
+                    {
+                        const FVector2D High=Normal*N(F.Data,TEXT("high_side"));
+                        Drop=G.Sample(P+High*N(F.Data,TEXT("face_width_cm")))-G.Sample(P-High*N(F.Data,TEXT("talus_width_cm")));
+                    }
+                    Measured=FMath::Max(Measured,Drop);
+                }
+                M->SetNumberField(TEXT("measured_cross_section_depth_drop_cm"),Measured);
+            }
+            if (F.Type==TEXT("crater") || F.Type==TEXT("pit"))
+            {
+                const FVector2D Centre(F.Params[0],F.Params[1]);
+                const double Radius=F.Type==TEXT("crater")?F.Params[3]:F.Params[4];
+                double Rim=-TNumericLimits<double>::Max();
+                for (int32 J=0; J<72; ++J)
+                {
+                    const double Angle=2*PI*J/72;
+                    Rim=FMath::Max(Rim,G.Sample(Centre+FVector2D(FMath::Cos(Angle),FMath::Sin(Angle))*Radius));
+                }
+                M->SetNumberField(TEXT("measured_rim_to_floor_depth_cm"),Rim-G.Sample(Centre));
+            }
+            M->SetArrayField(TEXT("output_delta_range_cm"),{Number(DeltaMin),Number(DeltaMax)});
+            M->SetNumberField(TEXT("output_min_z_cm"),Minimum); M->SetNumberField(TEXT("output_max_z_cm"),Maximum);
+            M->SetNumberField(TEXT("output_depth_drop_range_cm"),Maximum-Minimum); M->SetNumberField(TEXT("maximum_wall_slope_degrees"),Slope);
+        }
+        Metrics.Add(Obj(M));
+    }
+    // Recheck original routes after every overlapping carve and final guard restoration.
+    double RouteGrade=0;
+    for (const auto& Line:Routes)
+    {
+        const double Total=Length(Line); const int32 Count=FMath::CeilToInt(Total/Step);
+        FVector2D Previous=Line[0]; double Z=G.Sample(Previous);
+        for (int32 J=1; J<=Count; ++J)
+        {
+            const FVector2D P=Math::AtArc(Line,Total*J/Count); const double Next=G.Sample(P);
+            RouteGrade=FMath::Max(RouteGrade,FMath::Abs(Next-Z)/(P-Previous).Size()); Previous=P; Z=Next;
+        }
+    }
+    Report->SetArrayField(TEXT("features"),Metrics); Report->SetNumberField(TEXT("protected_route_maximum_grade"),RouteGrade);
+    Object PathReport=MakeShared<FJsonObject>(); PathReport->SetArrayField(TEXT("paths"),Paths);
+    const FString MaskDirectory=FPaths::Combine(FPaths::ProjectSavedDir(),TEXT("Codex/TerrainMasks"));
+    IFileManager::Get().MakeDirectory(*MaskDirectory,true);
+    if (!Save(PathReport,FPaths::Combine(MaskDirectory,TEXT("polylines.json")))) return Fail(TEXT("Cannot write path polylines"));
+    if (bInvalid || RouteGrade>=.08) return Fail(TEXT("Output path/descent/cross-slope or protected route grade failed; landscape untouched, inspect report"));
+    const int32 MaskSize=int32(N(Sampling,TEXT("mask_size")));
+    TArray<uint8> PathMask,CliffMask; PathMask.Init(0,MaskSize*MaskSize); CliffMask.Init(0,MaskSize*MaskSize);
+    const FVector2D Min=G.World(G.X1,G.Y1),Max=G.World(G.X2,G.Y2);
+    for (int32 Y=0; Y<MaskSize; ++Y) for (int32 X=0; X<MaskSize; ++X)
+    {
+        const FVector2D P(FMath::Lerp(Min.X,Max.X,double(X)/(MaskSize-1)),FMath::Lerp(Min.Y,Max.Y,double(Y)/(MaskSize-1)));
+        double Weight=0;
+        for (const FFeature& F:Features) if (F.Stage==TEXT("path")) Weight=FMath::Max(Weight,1-Math::Smooth(N(F.Data,TEXT("width_cm"))*.5,N(F.Data,TEXT("width_cm"))*.5+N(F.Data,TEXT("shoulder_cm")),Math::Project(P,F.Line).Distance));
+        PathMask[Y*MaskSize+X]=uint8(FMath::RoundToInt(Weight*255));
+        const int32 SX=FMath::RoundToInt(double(X)*(G.W-1)/(MaskSize-1)),SY=FMath::RoundToInt(double(Y)*(G.H-1)/(MaskSize-1));
+        const double Degrees=OutputSlope[SY*G.W+SX];
+        bool bTalus=false,bLedge=false;
+        for (const FFeature& F:Features) if (F.Type==TEXT("canyon") || F.Type==TEXT("escarpment"))
+        {
+            const auto Q=Math::Project(P,F.Line);
+            if (Q.Arc<=0 || Q.Arc>=F.Total) continue;
+            double Cross=0; const TArray<FVector2D>* Knots=nullptr;
+            if (F.Type==TEXT("canyon"))
+            {
+                const double Floor=FMath::Lerp(F.Floor[0],F.Floor[1],Q.Arc/F.Total)*.5;
+                const double Rim=FMath::Lerp(F.Rim[0],F.Rim[1],Q.Arc/F.Total)*.5;
+                Cross=(Q.Distance-Floor)/(Rim-Floor); Knots=Q.SignedDistance>=0?&F.North:&F.South;
+            }
+            else
+            {
+                Cross=(Q.SignedDistance*N(F.Data,TEXT("high_side"))+N(F.Data,TEXT("talus_width_cm")))/
+                    (N(F.Data,TEXT("talus_width_cm"))+N(F.Data,TEXT("face_width_cm"))); Knots=&F.Wall;
+            }
+            if (Cross<=0 || Cross>=1) continue;
+            for (int32 J=1; J<Knots->Num(); ++J) if (Cross>=(*Knots)[J-1].X && Cross<=(*Knots)[J].X)
+            {
+                bLedge|=(*Knots)[J-1].Y==(*Knots)[J].Y && (*Knots)[J].Y>0 && (*Knots)[J].Y<1;
+                // Talus is the first rising section below the first strata bench.
+                bTalus|=J==1;
+                break;
+            }
+        }
+        CliffMask[Y*MaskSize+X]=Degrees>N(Sampling,TEXT("cliff_degrees"))?255:(bTalus && Degrees>=N(Sampling,TEXT("talus_min_degrees")) && Degrees<=N(Sampling,TEXT("talus_max_degrees"))?85:(bLedge || Degrees>N(Sampling,TEXT("talus_max_degrees"))?170:0));
+    }
+    if (!FFileHelper::SaveArrayToFile(PathMask,*FPaths::Combine(MaskDirectory,TEXT("paths.raw"))) || !FFileHelper::SaveArrayToFile(CliffMask,*FPaths::Combine(MaskDirectory,TEXT("cliffs.raw")))) return Fail(TEXT("Cannot write masks"));
+    Report->SetArrayField(TEXT("mask_world_bounds_cm"),{Number(Min.X),Number(Min.Y),Number(Max.X),Number(Max.Y)});
+    Report->SetNumberField(TEXT("mask_size"),MaskSize); Report->SetStringField(TEXT("mask_directory"),MaskDirectory);
+    Report->SetBoolField(TEXT("pcg_rebuild_required"),true); Report->SetStringField(TEXT("status"),TEXT("validated_pending_landscape_update"));
+    if (!Save(Report,ReportFile)) return Fail(TEXT("Cannot write report"));
+    Landscape->Modify(); TSet<ULandscapeComponent*> Components; Edit.GetComponentsInRegion(G.X1,G.Y1,G.X2,G.Y2,&Components);
+    for (ULandscapeComponent* C:Components)
+    {
+        if (AActor* Owner=C->GetOwner()) Owner->Modify();
+        C->Modify(); C->RequestHeightmapUpdate(); C->MarkPackageDirty();
+    }
+    Edit.SetHeightData(G.X1,G.Y1,G.X2,G.Y2,Output.GetData(),0,true); Edit.Flush();
+    Landscape->RequestLayersContentUpdateForceAll(ELandscapeLayerUpdateMode::Update_All,true); Landscape->ForceLayersFullUpdate(); Landscape->MarkPackageDirty();
+    return TEXT("OK: terrain v2 applied; collision verification and package save required");
+}
+#endif
