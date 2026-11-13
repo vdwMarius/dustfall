@@ -1,0 +1,378 @@
+{
+  "status": "complete",
+  "profile_status": "completed",
+  "scope": "PIE; editor visibility is not asserted. Actual viewport size recorded; High/100%render scale. Healthy-resource top-ups isolate rendering. Not packaged or target-hardware certification.",
+  "settings": {
+    "t.MaxFPS": 0,
+    "r.VSync": 0,
+    "r.ScreenPercentage": 100,
+    "r.DynamicRes.OperationMode": 0,
+    "sg.ViewDistanceQuality": 2,
+    "sg.AntiAliasingQuality": 2,
+    "sg.ShadowQuality": 2,
+    "sg.GlobalIlluminationQuality": 2,
+    "sg.ReflectionQuality": 2,
+    "sg.PostProcessQuality": 2,
+    "sg.TextureQuality": 2,
+    "sg.EffectsQuality": 2,
+    "sg.FoliageQuality": 2,
+    "sg.ShadingQuality": 2
+  },
+  "viewport_size": [
+    691,
+    464
+  ],
+  "runtime_render_cvars": {
+    "r.Nanite": 1,
+    "r.DynamicGlobalIlluminationMethod": 1,
+    "r.ReflectionMethod": 1,
+    "r.Shadow.Virtual.Enable": 1
+  },
+  "captures": [
+    {
+      "file": "Phase3_Habitat_Interior.csv",
+      "discarded_warmup_frames": 0,
+      "timings_ms": {
+        "FrameTime": {
+          "samples": 480,
+          "median": 16.652,
+          "p95": 17.308,
+          "p99": 17.843,
+          "max": 23.774
+        },
+        "GameThreadTime": {
+          "samples": 480,
+          "median": 6.578,
+          "p95": 7.358,
+          "p99": 7.817,
+          "max": 13.48
+        },
+        "RenderThreadTime": {
+          "samples": 480,
+          "median": 16.642,
+          "p95": 17.243,
+          "p99": 17.754,
+          "max": 18.3
+        },
+        "GPUTime": {
+          "samples": 480,
+          "median": 2.292,
+          "p95": 2.758,
+          "p99": 6.627,
+          "max": 6.773
+        }
+      },
+      "name": "Habitat_Interior",
+      "viewport_size": [
+        691,
+        464
+      ],
+      "loaded_pcg": {
+        "loaded_cells": 64,
+        "ism_components": 540,
+        "rock_instances": 71838,
+        "dust_sheet_instances": 370,
+        "debris_instances": 195,
+        "active_generation_components": 0
+      },
+      "game_delta_median_ms": 16.654398292303085,
+      "game_delta_p95_ms": 17.309200018644333
+    },
+    {
+      "file": "Phase3_Home_Day.csv",
+      "discarded_warmup_frames": 0,
+      "timings_ms": {
+        "FrameTime": {
+          "samples": 479,
+          "median": 16.658,
+          "p95": 17.429,
+          "p99": 18.478,
+          "max": 91.791
+        },
+        "GameThreadTime": {
+          "samples": 479,
+          "median": 6.681,
+          "p95": 7.807,
+          "p99": 9.575,
+          "max": 91.175
+        },
+        "RenderThreadTime": {
+          "samples": 479,
+          "median": 16.636,
+          "p95": 17.346,
+          "p99": 18.237,
+          "max": 19.166
+        },
+        "GPUTime": {
+          "samples": 479,
+          "median": 2.478,
+          "p95": 3.129,
+          "p99": 7.371,
+          "max": 8.929
+        }
+      },
+      "name": "Home_Day",
+      "viewport_size": [
+        691,
+        464
+      ],
+      "loaded_pcg": {
+        "loaded_cells": 64,
+        "ism_components": 540,
+        "rock_instances": 71838,
+        "dust_sheet_instances": 370,
+        "debris_instances": 195,
+        "active_generation_components": 0
+      },
+      "game_delta_median_ms": 16.658499836921692,
+      "game_delta_p95_ms": 17.432697117328644
+    },
+    {
+      "file": "Phase3_Wreck_Day.csv",
+      "discarded_warmup_frames": 0,
+      "timings_ms": {
+        "FrameTime": {
+          "samples": 480,
+          "median": 16.675,
+          "p95": 17.406,
+          "p99": 18.036,
+          "max": 19.534
+        },
+        "GameThreadTime": {
+          "samples": 480,
+          "median": 6.489,
+          "p95": 7.334,
+          "p99": 7.868,
+          "max": 13.21
+        },
+        "RenderThreadTime": {
+          "samples": 480,
+          "median": 16.66,
+          "p95": 17.33,
+          "p99": 17.87,
+          "max": 19.148
+        },
+        "GPUTime": {
+          "samples": 480,
+          "median": 2.28,
+          "p95": 2.67,
+          "p99": 6.901,
+          "max": 7.085
+        }
+      },
+      "name": "Wreck_Day",
+      "viewport_size": [
+        691,
+        464
+      ],
+      "loaded_pcg": {
+        "loaded_cells": 64,
+        "ism_components": 540,
+        "rock_instances": 71838,
+        "dust_sheet_instances": 370,
+        "debris_instances": 195,
+        "active_generation_components": 0
+      },
+      "game_delta_median_ms": 16.67580008506775,
+      "game_delta_p95_ms": 17.414499074220657
+    },
+    {
+      "file": "Phase3_Cruiser_Day.csv",
+      "discarded_warmup_frames": 0,
+      "timings_ms": {
+        "FrameTime": {
+          "samples": 480,
+          "median": 16.679,
+          "p95": 17.335,
+          "p99": 17.976,
+          "max": 20.534
+        },
+        "GameThreadTime": {
+          "samples": 480,
+          "median": 6.554,
+          "p95": 7.535,
+          "p99": 7.969,
+          "max": 14.59
+        },
+        "RenderThreadTime": {
+          "samples": 480,
+          "median": 16.658,
+          "p95": 17.269,
+          "p99": 17.722,
+          "max": 18.484
+        },
+        "GPUTime": {
+          "samples": 480,
+          "median": 2.248,
+          "p95": 2.671,
+          "p99": 7.042,
+          "max": 8.147
+        }
+      },
+      "name": "Cruiser_Day",
+      "viewport_size": [
+        691,
+        464
+      ],
+      "loaded_pcg": {
+        "loaded_cells": 64,
+        "ism_components": 540,
+        "rock_instances": 71838,
+        "dust_sheet_instances": 370,
+        "debris_instances": 195,
+        "active_generation_components": 0
+      },
+      "game_delta_median_ms": 16.679201275110245,
+      "game_delta_p95_ms": 17.34989881515503
+    },
+    {
+      "file": "Phase3_Home_Night.csv",
+      "discarded_warmup_frames": 0,
+      "timings_ms": {
+        "FrameTime": {
+          "samples": 480,
+          "median": 16.663,
+          "p95": 17.428,
+          "p99": 18.032,
+          "max": 20.17
+        },
+        "GameThreadTime": {
+          "samples": 480,
+          "median": 6.47,
+          "p95": 7.211,
+          "p99": 7.556,
+          "max": 13.621
+        },
+        "RenderThreadTime": {
+          "samples": 480,
+          "median": 16.676,
+          "p95": 17.375,
+          "p99": 18.012,
+          "max": 18.561
+        },
+        "GPUTime": {
+          "samples": 480,
+          "median": 2.265,
+          "p95": 2.807,
+          "p99": 6.84,
+          "max": 7.294
+        }
+      },
+      "name": "Home_Night",
+      "viewport_size": [
+        691,
+        464
+      ],
+      "loaded_pcg": {
+        "loaded_cells": 64,
+        "ism_components": 540,
+        "rock_instances": 71838,
+        "dust_sheet_instances": 370,
+        "debris_instances": 195,
+        "active_generation_components": 0
+      },
+      "game_delta_median_ms": 16.661901026964188,
+      "game_delta_p95_ms": 17.427299171686172
+    },
+    {
+      "file": "Phase3_Cruiser_Storm.csv",
+      "discarded_warmup_frames": 0,
+      "timings_ms": {
+        "FrameTime": {
+          "samples": 480,
+          "median": 16.649,
+          "p95": 17.332,
+          "p99": 18.181,
+          "max": 19.946
+        },
+        "GameThreadTime": {
+          "samples": 480,
+          "median": 6.489,
+          "p95": 7.387,
+          "p99": 7.888,
+          "max": 13.541
+        },
+        "RenderThreadTime": {
+          "samples": 480,
+          "median": 16.644,
+          "p95": 17.282,
+          "p99": 17.794,
+          "max": 19.588
+        },
+        "GPUTime": {
+          "samples": 480,
+          "median": 2.225,
+          "p95": 2.711,
+          "p99": 7.584,
+          "max": 9.296
+        }
+      },
+      "name": "Cruiser_Storm",
+      "viewport_size": [
+        691,
+        464
+      ],
+      "loaded_pcg": {
+        "loaded_cells": 64,
+        "ism_components": 540,
+        "rock_instances": 71838,
+        "dust_sheet_instances": 370,
+        "debris_instances": 195,
+        "active_generation_components": 0
+      },
+      "game_delta_median_ms": 16.64920151233673,
+      "game_delta_p95_ms": 17.334498465061188
+    },
+    {
+      "file": "Phase3_Dense_Field_Far.csv",
+      "discarded_warmup_frames": 0,
+      "timings_ms": {
+        "FrameTime": {
+          "samples": 480,
+          "median": 16.663,
+          "p95": 17.396,
+          "p99": 17.977,
+          "max": 21.611
+        },
+        "GameThreadTime": {
+          "samples": 480,
+          "median": 6.197,
+          "p95": 7.099,
+          "p99": 8.462,
+          "max": 15.017
+        },
+        "RenderThreadTime": {
+          "samples": 480,
+          "median": 16.659,
+          "p95": 17.35,
+          "p99": 17.885,
+          "max": 19.63
+        },
+        "GPUTime": {
+          "samples": 480,
+          "median": 2.186,
+          "p95": 2.74,
+          "p99": 6.486,
+          "max": 6.612
+        }
+      },
+      "name": "Dense_Field_Far",
+      "viewport_size": [
+        691,
+        464
+      ],
+      "loaded_pcg": {
+        "loaded_cells": 16,
+        "ism_components": 132,
+        "rock_instances": 18088,
+        "dust_sheet_instances": 70,
+        "debris_instances": 17,
+        "active_generation_components": 0
+      },
+      "game_delta_median_ms": 16.665901988744736,
+      "game_delta_p95_ms": 17.405100166797638
+    }
+  ],
+  "errors": [],
+  "limits": "PIE visibility is not asserted. Actual viewport dimensions may differ from1080p. Loaded instances are not rendered/visible-instance counts. Stationary cases exclude teleports, and do not establish packaged traversal or representative hardware60FPS."
+}

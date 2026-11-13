@@ -104,6 +104,10 @@ startup overhead, not a gameplay error. Local raw evidence is in
 
 `Phase2_Playtest_Checklist.md` covers normal-time packaged routes, sustained
 physical sprint, night/storm readability, subjective audio and stutter reports.
-These manual acceptance items are pending the user's playtest. Phase 2 content
-is implemented; Phase 3 should begin after reviewing those results. Landmarks
-remain exterior prototypes, and habitat remains sealed by design.
+The user confirmed testing the build on 2026-11-11 and reported unnatural rock
+scatter/open-backed scans, overly dark daytime and insufficient persistent
+dust/fog. These issues require correction; remaining manual checklist results
+are unreported. See `Phase3_Plan.md` for the PCG environment correction module
+and updated 40+ metre silhouette target. Earlier automated results above remain
+historical evidence, not acceptance of the revised visual requirements.
+Landmarks remain exterior prototypes, and habitat remains sealed by design.

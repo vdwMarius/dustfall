@@ -1,6 +1,6 @@
 # DUSTFALL
 
-Blueprint survival exploration prototype for Unreal Engine **5.8.4**. Read
+Blueprint and C++ survival exploration prototype for Unreal Engine **5.8.4**. Read
 [DUSTFALL_GDD.md](DUSTFALL_GDD.md) for the design and
 [DUSTFALL_Codex_Prompt.md](DUSTFALL_Codex_Prompt.md) for the phase plan.
 
@@ -10,7 +10,12 @@ Open `dustfall.uproject` in UE 5.8.4, open
 `/Game/World/Maps/L_Dustfall_Foundation`, and press Play. The foundation map
 contains a 2 km World Partition landscape, licensed Quixel sand/gravel/rock
 surfaces, instanced scanned rocks, exterior wreck/ruin/cruiser landmarks, wind,
-and runtime weather and day/night. The habitat remains a sealed exterior blockout.
+and runtime weather and day/night. Phase 3 adds a furnished walkable habitat,
+interlocked airlock, suit resources, clone respawn, recovery cache and save/load.
+Current content also includes a rounded industrial pod, real hills/ravines/pit,
+scavenging, typed inventory, scanner, beacons, lore and an accessible transport
+deck. Read [the current handoff](HANDOFF_Phase5.md) and
+[validation](Docs/Phase4_Validation.md) for actual results and limitations.
 
 | Control | Action |
 | --- | --- |
@@ -20,24 +25,78 @@ and runtime weather and day/night. The habitat remains a sealed exterior blockou
 | Left Shift | Hold to sprint |
 | V | Switch third / first person |
 | F | Toggle flashlight |
+| E | Airlock / salvage / read record / recover death crate |
+| Q | Pulse scanner |
+| Tab / J | Inventory / lore journal (survival continues) |
+| B | Place beacon for one PowerCell / retrieve nearby beacon with refund |
+| F5 / F9 | Save / load complete progress |
+| F8 | Disable / enable subtle Strain symptoms |
 | Escape | Stop editor play |
 
-Inventory, scanner, interaction, oxygen and Strain arrive in later phases.
+Run `Builds/Phase4/Windows/Play_DUSTFALL.cmd` for the current Windows review
+build at 1920x1080 High. Keep the complete Windows folder. Alt+F4 exits.
+Rebuild with `Scripts/package_phase4.ps1` while the editor is closed.
+Crafting, habitat progression, cosmetics and full hallucination/audio systems
+remain later work. The user deferred heavy validation; use
+[the playtest checklist](Docs/Phase4_Playtest_Checklist.md).
+
+## Phase 3
+
+Rounded custom pod geometry and actual landscape relief are now saved.
+Heavy gameplay/hazard regressions, final reload/cooked persistence, visual and
+performance acceptance remain deferred to the user. Historical Phase 3 tests
+predate these art/terrain changes. The preliminary Phase 3 package starts and
+exits cleanly but predates a save-load graph repair; use the corrected Phase 4
+build for playtesting. Phase 2 packages are historical.
+See [the Phase 3 plan](Docs/Phase3_Plan.md), [habitat contract](Docs/Phase3_Habitat.md)
+and [survival contract](Docs/Phase3_Survival.md) for scope and tuning.
+
+Start inside the habitat. Press E near the airlock to begin its cycle: enter
+the chamber while the near door is open, wait for sealing, then pass through
+the far door. The cycle pauses if a doorway is occupied. Oxygen and power
+refill in the sanctuary and drain outside. Sprinting consumes stamina, storms
+wear suit integrity, and depleted power shuts down the flashlight. Oxygen or
+integrity failure respawns a new clone at home with a recoverable cache outside.
+
+Runtime tuning lives in `/Game/Data/DA_Survival_Phase3` and
+`/Game/Data/DA_Environment_Phase2`. Saves use the `Dustfall_Phase3` slot in the
+running game's Saved/SaveGames folder. Development verification uses isolated
+QA slots. F5 saves immediately; periodic autosave and death/recovery save as well.
+Phase 4 keeps a schema-2 full snapshot in `Dustfall_Phase3_Exploration`, including
+typed carried/cache inventory, claimed salvage, beacons, journal and private
+Strain. Missing companion saves migrate the schema-1 scalar scrap payload.
+
+Use `Scripts/build_phase3.py` in the sole editor for a clean full rebuild;
+individual module builders are available for narrower changes. PCG generation
+finishes asynchronously: check `Saved/Codex/phase3_build.json` before proceeding.
+Run `Scripts/verify_phase3_editor.py` for serial runtime regressions. These
+checks do not establish physical-key, final-art or target-hardware acceptance.
 
 ## Authoring
 
-Gameplay is stored in Blueprint assets; Python is used only to author and verify
-assets in the editor. No native game module or Python runtime is required to play.
+After a full Phase 3 rebuild, run `build_phase4_wreck.py` then `build_phase4.py`
+in the same sole writer to restore the Phase 4 actors and native HUD. Read
+`Docs/Phase4_Exploration.md`; do not use the legacy world-reset builders on
+current content. `smoke_phase4_editor.py` is a short isolated callable check.
+
+The `Source/dustfall` C++ runtime module supplies core resource integration,
+sanctuary boundaries and sprint exhaustion rules to gameplay Blueprints. Data
+assets control tuning; Blueprints handle presentation and orchestration. Python
+is used only to author and verify assets in the editor and is not needed to play.
 The third-person template assets keep their original paths so mannequin and
 Enhanced Input dependencies resolve.
 
-The tuning assets are `/Game/Data/DA_Atmosphere_Phase1` and
-`/Game/Data/DA_PlayerFoundation_Phase1`. These Phase 1 authoring assets apply their
-values when the corresponding build script runs; they do not hot-reload in play.
-After changing its values, run `Scripts/build_environment.py` through Unreal's
-Python editor console to reapply the environment. This rebuilds only the tagged
-foundation pad and habitat blockout. It preserves the map and existing tuning
-values. Run `Scripts/build_player.py` to reapply player tuning. Its generated graph
+Compile `dustfallEditor Win64 Development` with Unreal's `Build.bat` after changing
+C++ headers or source, with the authoring editor closed. The game and editor
+targets are tracked under `Source/`. Native automation tests are under
+`Dustfall.Core`; run them before the Phase 3 PIE suite after core rule changes.
+
+The historical `/Game/Data/DA_Atmosphere_Phase1` and
+`/Game/Data/DA_PlayerFoundation_Phase1` apply at authoring time, not during play.
+Current climate uses the runtime environment data described above. Use Phase 3
+builders for current world content. `Scripts/build_environment.py` delegates to
+the Phase 2 director builder; it does not build the new habitat. Run
+`Scripts/build_player.py` only when changing foundation player tuning. Its generated graph
 nodes occupy reserved coordinates; keep manual nodes outside that area or extend
 the project-owned `/Game/Player/BP_DustfallCharacter` child Blueprint. The
 GameMode extension point is `/Game/Core/BP_DustfallGameMode`.
@@ -67,7 +126,7 @@ separate validation. `Saved`, `Intermediate`, caches and local reports are ignor
 by Git. See `Docs/Phase1_AssetPlan.md` for asset provenance and the acquisition plan.
 See `PROGRESS.md` for completed checks and remaining validation limits.
 
-## Phase 2 authoring and runtime
+## Historical Phase 2 authoring and runtime
 
 Use one editor with the foundation map and landscape cells loaded. Run
 `Scripts/build_phase2.py` for the complete repeatable build, after resolving any
@@ -104,7 +163,7 @@ because it waits for real weather blends. Run `Scripts/verify_phase1_editor.py`
 for player regression checks. Reports remain under ignored `Saved/Codex`.
 See PROGRESS.md for actual test results and outstanding checks.
 
-## Phase 2 playtest build and handoff
+## Historical Phase 2 playtest build and handoff
 
 Run `G:\ue\dustfall\Builds\Phase2\Windows\Play_DUSTFALL.cmd` for the packaged
 Windows Development build at 1920×1080 High. Keep its complete Windows folder.

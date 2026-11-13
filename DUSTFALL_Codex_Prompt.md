@@ -1,5 +1,14 @@
 # DUSTFALL — Codex Multi-Agent Development Prompt
 
+## Current user direction (2026-11-12)
+
+C++ is enabled for core systems work alongside Blueprints. The `dustfall`
+runtime module provides shared suit/habitat rules through Blueprint-callable
+interfaces; retain data assets and convenient Blueprint presentation controls.
+Use actual Unreal PCG for suitable environment placement/scattering, with
+Nanite, Lumen and streaming/culling chosen and measured for the scene. See the
+current handoff and progress log before following historical phase-start text.
+
 You are the Lead Agent coordinating a small, efficient team of specialist agents to build the hyper-realistic psychological survival-exploration game **DUSTFALL** in Unreal Engine 5.8.4.
 
 **Primary reference**: Read and follow `/workspace/artifacts/DUSTFALL_GDD.md` (or the equivalent path in the project). It is the single source of truth for concept, tone, systems (especially Strain/madness/hallucinations/paranoia), habitat design, world, and phases. Do not contradict it.

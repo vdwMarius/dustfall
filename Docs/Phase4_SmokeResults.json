@@ -1,0 +1,34 @@
+{
+  "status": "passed",
+  "scope": "Brief callable PIE smoke only; full regression, keyboard, reload, visual and performance validation deferred",
+  "checks": {
+    "native_exploration_present": true,
+    "legacy_save_success": true,
+    "legacy_load_restores_value": true,
+    "schema1_scalar_migration": true,
+    "world_salvage_interaction": true,
+    "world_record_archived": true,
+    "typed_inventory_add": true,
+    "capacity_rejects_without_loss": true,
+    "scanner_spends_power": true,
+    "beacon_place": true,
+    "beacon_refund": true,
+    "recovery_cache_visible": true,
+    "recovery_light_enabled": true,
+    "death_moves_typed_payload": true,
+    "typed_crate_recovery": true,
+    "no_duplicate_recovery": true,
+    "save_snapshot": true,
+    "load_snapshot": true,
+    "symptoms_accessibility_off": true
+  },
+  "errors": [],
+  "migration_observed": {
+    "loaded": true,
+    "carried": 2,
+    "recovery": {
+      "Scrap": 3
+    }
+  },
+  "viewport_capture": "Requested normal-residency game viewport Shot; inspect Saved/Screenshots/WindowsEditor"
+}

@@ -1,0 +1,94 @@
+{
+  "date": "2026-11-12",
+  "engine": "5.8.4",
+  "native_tests": {
+    "succeeded": 2,
+    "failed": 0,
+    "notRun": 0
+  },
+  "runtime_status": "passed",
+  "suites": {
+    "survival": {
+      "status": "passed",
+      "passed_checks": 16,
+      "required_unpassed": []
+    },
+    "habitat": {
+      "status": "passed",
+      "passed_checks": 12,
+      "required_unpassed": []
+    },
+    "player": {
+      "status": "passed",
+      "passed_checks": 17,
+      "required_unpassed": []
+    },
+    "environment": {
+      "status": "passed",
+      "passed_checks": 12,
+      "required_unpassed": []
+    },
+    "navigation": {
+      "status": "passed",
+      "passed_checks": 0,
+      "required_unpassed": []
+    }
+  },
+  "navigation": [
+    {
+      "name": "Day_Calm",
+      "status": "pass",
+      "walked_cm": 198061.84156380215,
+      "real_seconds": 107.46900000000005,
+      "waypoints_reached": 18,
+      "weather": 0,
+      "storm_intensity": 0.0
+    },
+    {
+      "name": "Night_Haze",
+      "status": "pass",
+      "walked_cm": 198011.3474834437,
+      "real_seconds": 107.35899999999947,
+      "waypoints_reached": 18,
+      "weather": 1,
+      "storm_intensity": 0.0
+    },
+    {
+      "name": "Day_Storm",
+      "status": "pass",
+      "walked_cm": 198037.11810021833,
+      "real_seconds": 107.35899999999947,
+      "waypoints_reached": 18,
+      "weather": 2,
+      "storm_intensity": 1.0
+    }
+  ],
+  "pcg": {
+    "status": "passed",
+    "loaded_cells": 64,
+    "counts": {
+      "rocks": 71838,
+      "dust_sheets": 370,
+      "debris": 195
+    },
+    "minimum_clearances": {
+      "route_center_clearance_cm": 780.3478538989056,
+      "home_center_clearance_cm": 2348.688186992567
+    },
+    "layout_sha256": "b85e7aadfb59b93c55a6a111da0665a0f69a4a6d6e68d919abde1b12381cd946",
+    "render_cvars": {
+      "r.Nanite": 1,
+      "r.DynamicGlobalIlluminationMethod": 1,
+      "r.ReflectionMethod": 1,
+      "r.Shadow.Virtual.Enable": 1
+    },
+    "legacy_rock_cells_loaded": 0,
+    "legacy_debris_actors_loaded": 0,
+    "errors": []
+  },
+  "limits": [
+    "Injected/callable controls do not establish physical keyboard acceptance.",
+    "Visual captures are editor SceneCapture evidence; temporary full-mip residency was restored afterwards.",
+    "Packaged testing and performance are recorded separately."
+  ]
+}

@@ -1,0 +1,88 @@
+{
+  "jagged_outcrops": 64,
+  "hazard_warning_stakes": 7,
+  "probe_samples": {
+    "home": {
+      "xy_cm": [
+        0,
+        0
+      ],
+      "landscape_z_cm": 0.0
+    },
+    "near_hill": {
+      "xy_cm": [
+        8000,
+        -11000
+      ],
+      "landscape_z_cm": 2471.4181939672944
+    },
+    "north_ridge": {
+      "xy_cm": [
+        3000,
+        43000
+      ],
+      "landscape_z_cm": 4823.856560597253
+    },
+    "pit_floor": {
+      "xy_cm": [
+        -8500,
+        -6500
+      ],
+      "landscape_z_cm": -852.373004406043
+    },
+    "pit_east_ramp": {
+      "xy_cm": [
+        -6300,
+        -6500
+      ],
+      "landscape_z_cm": 213.2644173914705
+    },
+    "ravine_floor": {
+      "xy_cm": [
+        18000,
+        -18500
+      ],
+      "landscape_z_cm": -815.660787174791
+    },
+    "crater_floor": {
+      "xy_cm": [
+        28000,
+        2000
+      ],
+      "landscape_z_cm": -732.0433380064096
+    }
+  },
+  "protected_route_collision_samples": 217,
+  "protected_route_max_grade": 0.00533451506327377,
+  "pit_escape_direction": "east ramp; terraced floor, 3m rim transition",
+  "ravine_escape_direction": "broad south bank; protected route forms saddle",
+  "hazards": [
+    {
+      "kind": "pit",
+      "xy_cm": [
+        -8500,
+        -6500
+      ]
+    },
+    {
+      "kind": "ravine",
+      "xy_cm": [
+        18000,
+        -18500
+      ]
+    }
+  ],
+  "status": "complete",
+  "landscape_result": "OK extent=0,0,2016,2016 vertices=4068289 changed=3360817 relief_cm=-1237.45..6100.01 components=256",
+  "baseline_file": "Scripts\\Data\\Phase3LandscapeBaseline.bin",
+  "baseline_sha256": "548cbe72e5631233e7c0522d455c97e027b7c5c42b04f3329101a9b044914525",
+  "pcg_rebuild_required": false,
+  "acceptance": "terrain authored; navigation, recovery, visibility and package validation still required",
+  "pcg_rebuild_results": {
+    "debris": 195,
+    "cells": 64,
+    "rocks": 71682,
+    "dust_sheets": 364
+  },
+  "heavy_tests": "Deferred to user by explicit instruction; no runtime traversal, regression, visibility matrix or performance run"
+}

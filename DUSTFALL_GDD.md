@@ -1,7 +1,7 @@
 # DUSTFALL
 **Game Design Document**  
 *Working Title*  
-**Version:** 1.0  
+**Version:** 1.1 (2026-11-11 visual direction update)
 **Engine:** Unreal Engine 5.8.4  
 **Genre:** Hyper-realistic Survival Exploration / Psychological Atmospheric  
 **Target:** Mid-range hardware, stable 60+ fps  
@@ -112,6 +112,10 @@ Long-range trips (especially to the cruiser or deep ruins) raise Strain fastest.
 ## 7. Habitat (Emotional & Mechanical Core)
 Starts as a small damaged pod with flickering light, bed, and broken fabricator. Interior is fully walkable with airlock transition.
 
+User art direction (2026-11-13): the existing square/basic functional prototype
+is not the final habitat. Finish a rounded damaged industrial pod and convincing
+interior toward the supplied references, preserving the tested sanctuary/airlock.
+
 **Upgrades** (crafted at fabricator):
 - Repair power, oxygen recycler, airlock
 - Larger oxygen capacity, better suit, stronger flashlight, longer-range scanner
@@ -131,10 +135,15 @@ The habitat remains the primary place Strain decreases, but high-Strain events c
 ## 8. World & Exploration
 - Vast barren wasteland: dunes, craters, rocky ridges, dry canyons, hazardous stones, debris fields, twisted metal
 - Low visibility core mood: dense exponential fog, wind-blown dust particles, dim reddish-brown sky, faint distant sun
-- Dynamic weather: calm, haze, dust storms (storms drop visibility to meters, increase suit damage and Strain)
+- Dynamic weather: relative calm, haze and dust storms, all retaining persistent airborne dust. Daylight must read clearly through the dust rather than feel excessively dark. Recognizable silhouettes should remain readable at 40+ metres, including settled storms; stronger gusts can briefly obscure more. Storms increase suit damage and Strain when those systems are implemented.
+- Use seeded Unreal PCG for suitable environment elements and scattering, with clustered natural distribution, varied sizes/heights, terrain-aware seating and clear traversal routes. Assemble open-backed rock scans into complete-looking boulders/cliffs using overlapping rotated copies; hide unfinished faces.
 - Day/night cycle; night is near pitch black — reliance on flashlight and placed beacons
 - Points of interest: crashed starships, giant space cruiser (major multi-room exploration site), ruined hab modules with occupant stories, alien-style ruins (monoliths, arches, partially enterable structures)
 - Seeded / consistent layout so the world remains the same across sessions
+- User terrain direction (2026-11-13): actual hills, mounds, jagged rocky zones,
+  ridges, depressions/ravines and pitfalls must create hostile otherworldly
+  geography. Dense small scatter on flat ground is insufficient. Preserve
+  deliberate traversal/home access and test readable hazards and recovery in fog.
 - Habitat appears as a glowing landmark with compass home marker
 
 ---
@@ -159,8 +168,10 @@ Lore fragments (data logs, notes, glyph tablets) reveal the planet’s fate and 
 
 ## 11. Technical Direction (UE 5.8.4)
 - Nanite, Lumen, World Partition, Virtual Shadow Maps, Enhanced Input
+- Use appropriate Unreal rendering/generation tools, PCG, instancing and culling to improve visual quality within measured frame-time budgets. Verify Nanite suitability and profile Lumen, volumetrics and dust effects; tool enablement alone does not establish a performance improvement.
 - Heavy use of Fab Marketplace + Quixel Megascans for rocks, terrain, debris, surfaces
 - Custom assets (habitat modules, ships, tools, cosmetics, key props) modeled in Blender and imported via FBX
+- C++ is enabled for shared core gameplay rules and future systems work, with Blueprint-callable interfaces and data-driven tuning. Keep presentation and iteration-friendly orchestration in Blueprints where appropriate. This follows the user's 2026-11-12 direction.
 - MetaSounds for dynamic wind, breathing, heartbeat, suit warnings, and hallucination audio
 - Data Assets for all tunable values (drain rates, costs, loot tables, Strain thresholds, fog, hallucination pools)
 - SaveGame system covering inventory, habitat state (modules + decorations), player progression, Strain-related unlocks, and world flags
@@ -201,4 +212,9 @@ Roles assigned dynamically by Lead:
 
 ---
 
-*End of GDD v1.0 — Living document. Lead Agent should update version notes when major systems change.*
+Version 1.1 records the user's 2026-11-11 tested-build feedback and replaces the
+earlier metre-scale storm visibility target with readable 40+ metre silhouettes.
+See `Docs/Phase3_Plan.md` and `Docs/References/Phase3/` for implementation order
+and the supplied habitat/interior, explorable wreck and suit visual references.
+
+*End of GDD v1.1 — Living document.*

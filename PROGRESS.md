@@ -1,5 +1,139 @@
 # Development progress
 
+## 2026-11-13 — main-only delivery and Phase 5 handoff
+
+Prepared `HANDOFF_Phase5.md` with current native/Blueprint contracts, asset
+paths, save schemas, authoring/build/verify scripts, measured evidence and
+unfinished work. Expanded the Phase4 checklist with unchecked acceptance
+items and a result-recording template. Heavy tests remain user-deferred.
+
+The combined unpublished branch is preserved. Delivery history on main is
+split into Phase3, Phase4 and documentation. The Phase3 GameMode uses its
+suit HUD; Phase4 switches to the native exploration HUD. The final code/asset
+tree is preserved byte-for-byte relative to the packaged review build; the
+interim HUD asset is used only in the Phase3 commit. No new gameplay tests or
+content changes were introduced while preparing history.
+
+Audit all tracked/outgoing blobs against100MB and each staged tree for
+Saved/Intermediate/Builds/DerivedDataCache and unrelated imports before push.
+Push only main to `https://github.com/vdwMarius/dustfall.git`, never the backup
+or preserved combined feature branch. Actual audit results are recorded below.
+
+Repository pre-push audit **passed**:1,121 tracked files; largest24,799,535bytes
+(24.80MB). No tracked file or blob anywhere in the three outgoing commits is
+over100,000,000bytes. Every staged commit tree excludes Saved/, Intermediate/,
+Builds/, DerivedDataCache/, Content/Megascans_8k/ and the source ZIP. The active
+index is clean after the split; both unrelated imports remain untracked.
+Phase3 commit `bf0f954`, Phase4 commit `a046107`; final docs form the third
+commit. Remote main was fetched and still matches base `60004c1`, allowing
+an ordinary fast-forward with the explicit main-to-main refspec. The combined
+local history and backup branch remain unchanged and are not push targets.
+
+Publication remains **blocked**, not complete. Automatic approval review
+rejected the explicit main-to-main push to
+`https://github.com/vdwMarius/dustfall.git`: it accepted main-only publication
+but required trusted user wording explicitly authorizing export of the project
+source/assets to that specific destination. No upload or alternate route was
+attempted. The three logical commits are ready locally on main; obtain that
+specific authorization before retrying. Remote main remains at the Phase2 base.
+
+## 2026-11-13 — rounded pod, real relief and Phase 4 review build
+
+Continued the complete uncommitted Phase 3 tree with three fresh specialists
+and one serialized Unreal asset writer. Preserved unrelated Megascans imports.
+User subsequently asked to defer heavy testing to their playtest and cap model
+effort at medium; no new full regressions/performance/stress runs were made.
+
+Saved eleven custom curved pod meshes, worn panels/damage/repairs/windows,
+retained functional furnished interior/airlock/spawn and removed the old slab.
+Authored real landscape heightfield relief (-12.37..+61m delta), 64 jagged
+outcrops, marked pit/ravine and native impact/safe-rim crate rules. Collision
+probes confirm hills/depressions and nearly level protected routes. Rebuilt
+64 PCG cells: 71,682 rocks, 364 dust sheets, 195 debris. Minimal art captures
+show the actual rounded pod and rising terrain; reference-quality finish and
+40+m player-view acceptance remain open.
+
+Phase 4 implements native typed inventory/cache/save migration, 12 stable
+salvage/lore nodes, scanner, glowing persistent beacons with PowerCell refund,
+home guidance, journal, four records, temporary private Strain and F8 symptom
+toggle. Added an accessible crashed transport cargo/recorder section; nine
+ground probes/seven static capsule sweeps pass after correcting the ramp lip.
+The Phase 3 cook exposed a pruned save-existence node; repaired its execution
+path and repeatable builder. Actual legacy load and scalar migration pass.
+
+Final editor C++ compilation passed. Brief isolated Phase 4 PIE smoke passed
+19/19 checks; actual HUD/inventory screenshot saved. Both Phase 3 and Phase 4
+Windows archives built and passed short isolated packaged startup/clean-exit
+smokes. The preliminary Phase 3 artifact predates the save-load repair; use
+the final Phase 4 build, whose cook has zero errors and zero warnings.
+Launcher: `Builds/Phase4/Windows/Play_DUSTFALL.cmd` (1920x1080 High).
+
+Heavy gameplay/hazard regression, final fresh-restart/cooked-layout persistence,
+physical keys/audio/visual acceptance, packaged traversal/PSO/performance and
+mid-range stable60 remain deferred to user. Review-build Canvas UI, modular
+ship/pod finish, Epic mannequin and text/scanner-only initial symptoms remain
+explicit limits. Crafting/progression/decoration/cosmetics/full cruiser and
+psychological/audio layer are later work. See `HANDOFF_Phase4.md`,
+`Docs/Phase4_Validation.md` and `Docs/Phase4_Playtest_Checklist.md`.
+
+The older entries below are historical evidence, not current acceptance.
+
+Historical implementation commit: `0fdd58b`, preserved locally. Earlier
+feature-branch push attempts were rejected by automatic approval review and
+never uploaded. The latest instruction supersedes those attempts: split the
+commits and push main only. Unrelated Megascans folder/source ZIP remain
+untracked and excluded.
+
+## 2026-11-13 — current handoff and unfinished Phase 3 work
+
+Updated `HANDOFF_Phase3.md` to replace the obsolete Phase 2 starting-point text.
+Current branch: `codex/phase3-survival-and-pcg`; HEAD remains `60004c1`.
+Phase 3 work is uncommitted, including new assets/scripts and the C++ runtime
+module. No Phase 3 commit/push or Windows package was completed. No specialist
+worker is currently running; fresh workers can continue from the saved files.
+
+Implemented with three specialists plus lead: native Blueprint-callable suit/
+sanctuary/exhaustion rules, survival/HUD, walkable prototype habitat/interlocked
+airlock, clone respawn, minimal recovery cache/save, native PCG scatter/debris,
+composite rocks and brighter persistent warm dust. Native editor compilation
+and both C++ automation tests passed. All five runtime suites passed, including
+18 navigation waypoints in three weather/time cases. Final PCG audit passed:
+71,838 rocks, 370 dust sheets, 195 debris, 64 spatial cells. Seven editor profiling
+cases completed at 691x464 High; a 91.791 ms CPU hitch remains. See Phase 3
+validation/results/performance docs for evidence and limits.
+
+User feedback: the square/basic habitat is a testing prototype, not final art.
+Finish a rounded damaged industrial pod and convincing interior toward the
+references. Terrain is too flat: add actual hills, mounds, jagged rocky zones,
+ridges/depressions/ravines and pitfalls with varied elevation and deliberate,
+readable hazards. More small scatter alone is insufficient. These requirements
+are in the handoff/plan for the next environment and habitat workers.
+
+Still unfinished: terrain/habitat corrections, final dense-layout reload/cooked
+persistence, Phase 3 packaging/smoke/performance tests, physical input/audio/
+visual acceptance, and commit/push of verified work. The earlier 7,881-instance
+restart check does not validate final dense-layout persistence. Finish these
+gates before Phase 4. Next-chat prompt: `NEXT_CHAT_Phase4_PROMPT.md`.
+
+## 2026-11-11 — user playtest feedback and Phase 3 priorities
+
+User confirmed testing the Phase 2 build and reported unnatural rock placement,
+incomplete/open-backed rock scans, insufficient height/size variation, overly
+dark daytime and insufficient persistent dust/fog. Acceptance remains open;
+unreported checklist items are not marked passed.
+
+Recorded the first Phase 3 module as PCG environment placement/scattering,
+all-sided composite boulders/cliffs, varied natural formations and brighter
+daytime inside continuous dust/sandstorm haze, with silhouettes readable at
+40+ metres. Use appropriate Unreal tools including Nanite, Lumen, instancing
+and World Partition, validated against frame-time/streaming measurements.
+Saved all four reference images and documented habitat, interior, wreck and
+suit direction in `Docs/Phase3_Plan.md`. Updated the handoff accordingly.
+
+This update changes planning/documentation only; game assets and the existing
+packaged build are unchanged. Next: implement and validate Module 3A, then the
+habitat/airlock, survival/HUD, and death/recovery/save modules.
+
 ## 2026-11-11 — Phase 2 world and runtime atmosphere module
 
 Created exactly five agents, sequencing the four specialists within the runtime

@@ -1,0 +1,11 @@
+{
+  "phase": "Phase4",
+  "exit_code": 0,
+  "log": "G:\\ue\\dustfall\\Saved\\Codex\\PackagedSmoke\\Phase4\\smoke.log",
+  "isolated_user_directory": "G:\\ue\\dustfall\\Saved\\Codex\\PackagedSmoke\\Phase4",
+  "loaded_foundation_map": true,
+  "clean_exit": true,
+  "errors": [],
+  "scope": "600-frame stationary packaged startup smoke only. User requested heavy tests deferred; no traversal, restart-persistence, visual acceptance or performance certification.",
+  "status": "passed"
+}

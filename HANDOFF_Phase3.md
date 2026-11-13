@@ -1,144 +1,73 @@
-# DUSTFALL — Phase 2 handoff / Phase 3 starting point
+# DUSTFALL — current Phase 3 handoff / finish Phase 3 before Phase 4
 
-Phase 2 implementation is complete and a local Windows Development build is
-ready for user acceptance. **Do not assume the user has tested it.** Read their
-completed checklist, fix reported Phase 2 regressions, then begin Phase 3.
-No survival/interior/death systems have been implemented in this phase.
+**Superseded by [HANDOFF_Phase4.md](HANDOFF_Phase4.md), 2026-11-13.**
+The continuation authored rounded pod/real relief and Phase 4 systems.
+The user then explicitly deferred heavy testing to their playtest. The text
+below is historical starting context, not the current build status.
 
-## First actions in the next chat
+Updated **2026-11-13** at the user's request. This replaces the old Phase 2 starting-point handoff. **Phase 3 is not finished or accepted.** Its functional systems and automated gameplay checks are implemented/passing, but packaging, final persistence/visual acceptance and the environment/habitat art work below remain open. Do not tell the next user that these are complete.
 
-1. Read `DUSTFALL_GDD.md`, `DUSTFALL_Codex_Prompt.md`, `PROGRESS.md`, `README.md`,
-   this handoff, `Docs/Phase2_Validation.md`, `Docs/Phase2_Playtest_Checklist.md`
-   and `Docs/Phase2_AssetManifest.json`. Phase 1 asset/habitat docs remain useful.
-2. Inspect Git HEAD, status, origin/main and the actual open editor before writing.
-   Main implementation commit is `7365782`; the subsequent Phase 2 finalization
-   commit contains this handoff, final storm tuning, launcher and measured results.
-   Preserve any newer commits and user changes. The repository is
-   `https://github.com/vdwMarius/dustfall`, workspace `G:\ue\dustfall`.
-3. Ask for checklist results only if missing; never report unperformed user tests
-   as passed. The exact ready-to-run build and checklist are linked below.
-4. Follow the five-person team structure in the project prompt. There are only
-   four concurrent slots including lead, so sequence four specialist assignments.
-   Prefer GPT-6.1 Terra Medium (or Sol Medium) as requested. Serialize editor writes.
+## Repository and worker state
 
-## Build and acceptance
+- Workspace: `G:\ue\dustfall`; repository: `https://github.com/vdwMarius/dustfall`.
+- Current branch: `codex/phase3-survival-and-pcg`. HEAD is still `60004c1` (Phase 2 finalization). **Phase 3 changes are uncommitted, with many new/untracked source, scripts and Unreal assets. Preserve the entire working tree. No Phase 3 commit/push was completed.**
+- Three additional workers contributed: environment/PCG, habitat, survival; lead handled integration, HUD and C++ core. **No specialist worker is currently running.** Their completed assignments do not mean the whole phase is complete. Start fresh workers next chat; do not depend on old agent IDs or private in-memory context. Three specialists plus lead fit the four concurrent slots; serialize all Unreal asset writes.
+- The environment worker finished the assigned PCG/atmosphere implementation and audit/capture/profiling helpers. Terrain redesign, final visual acceptance, final persistence and packaged validation are unfinished. Reassign an environment worker to finish them.
+- Inspect the actual editor/process/map/dirty packages first. Last authoring session used `Saved/Codex/phase3_native_editor.log`; do not assume it remains open. No queued editor command remained when this handoff was written.
+- Preserve unrelated user imports `Content/Megascans_8k/` and `Content/Megascans_RockyGrass_Source.zip`; do not delete, commit or sweep them into this module. Keep raw inbox archives, caches, Saved and Builds ignored. Do not push historical backup branch `codex/phase1-before-history-cleanup`.
 
-- Run `G:\ue\dustfall\Builds\Phase2\Windows\Play_DUSTFALL.cmd` for 1080p High.
-  Keep the complete Windows folder; the EXE alone is insufficient. Alt+F4 exits.
-- Follow `Docs/Phase2_Playtest_Checklist.md` and paste its results into the next chat.
-- Rebuild saved assets with `Scripts/package_phase2.ps1` (UE default root
-  `G:\Program Files\UE_5.8`). BuildCookRun includes `-build`: CommonUI requires
-  Unreal's temporary generated launch target in ignored Intermediate/Binaries.
-  There is still no native gameplay Source module. The engine MCP authoring
-  plugin is restricted to Editor targets because it is non-redistributable.
-- Builds/Saved/caches are ignored, so a clone must package its own runnable build.
-  Engine is **5.8.4**. Controls: WASD/mouse, Space, hold Left Shift, F, V.
-- See `Docs/Phase2_Validation.md` and performance JSON files for actual evidence.
-  Listening, sustained physical sprint, route readability and representative
-  target-hardware acceptance still require the user's playtest. Strong workstation
-  measurements do not establish stable 60+ FPS on mid-range machines.
-  Packaged 1080p High home capture passed startup/clean exit: frame median
-  16.652 ms, p95 18.839 ms, p99 20.622 ms, max 107.442 ms after 600 warmup frames.
-  Cold PSO creation hitches and later waits remain; see the validation report.
-  Investigate PSO precaching/frame pacing if the user reports stutter before
-  treating performance as accepted. GPU median 4.093 ms does not explain the
-  near-60 frame pacing by itself. The editor was closed after verifying no dirty
-  packages, and the packaged profiler exited automatically; inspect current state
-  again rather than assuming an editor or game is still running.
+## Read first
 
-## Current world and assets
+Read `DUSTFALL_GDD.md`, `DUSTFALL_Codex_Prompt.md`, this handoff, `PROGRESS.md`, `README.md`, `Docs/Phase3_Plan.md`, `Docs/Phase3_Validation.md`, `Docs/Phase3_TestResults.json`, `Docs/Phase3_Environment.md`, `Docs/Phase3_Habitat.md`, `Docs/Phase3_Survival.md`, `Docs/Phase3_EditorPerformance.json` and `Docs/Phase2_AssetManifest.json`. Supplied images are saved in `Docs/References/Phase3/`.
 
-- Default/editor map: `/Game/World/Maps/L_Dustfall_Foundation`, 2 km × 2 km landscape.
-  Character `/Game/Player/BP_DustfallCharacter`, GameMode `/Game/Core/BP_DustfallGameMode`.
-  Original Epic third-person template dependency paths must remain intact.
-- Twenty licensed user-provided Quixel archives from `Saved/AssetInbox/Quixel`:
-  eight 2K surfaces and twelve meshes. Provenance IDs, names and archive SHA256s
-  are in `Docs/Phase2_AssetManifest.json`. Imports: `/Game/World/QuixelPhase2`.
-- 2,185 Nanite rock instances in 64 spatial HISM cells, seed 2042; world-space
-  sand/gravel material with slope rock. Eight mesh components per rock-cell BP.
-  Scan pivots are centered and seated. Full footprints excluded from routes.
-  Small scatter is nonblocking; larger rocks use convex hull collision.
-  `get_simple_collision_count()` excludes convex hulls: include
-  `get_convex_collision_count()` when verifying collision.
-- Exterior wreck (+150 m,+100 m), ruin (+350 m,−250 m), ~200 m cruiser
-  (−550 m,+50 m), 80 noninteractive scanned industrial props, 36 route stakes.
-  Coordinates are relative to home/origin. `Scripts/phase2_layout.py` shares routes.
-  These are prototype exteriors, not explorable finished interiors.
-- Home is the original sealed shell with warm entrance lighting. A gentle exterior
-  ramp solves the 50 cm pad edge versus the player's 45 cm step-height limit.
+## Implemented and checked
 
-## Runtime environment integration
+- UE **5.8.4**, foundation map `/Game/World/Maps/L_Dustfall_Foundation`, 2 km square World Partition landscape; original Epic template dependencies preserved.
+- Native **C++ is now enabled at the user's request**. Tracked-source candidates are under `Source/`, with Game/Editor targets and the `dustfall` runtime module. `UDustfallSurvivalLibrary` supplies Blueprint-callable resource integration, sanctuary boundaries and exhaustion rules. Editor C++ compilation succeeded; both `Dustfall.Core` native automation tests passed. Data assets and Blueprint presentation/orchestration remain useful; do not revert to a Blueprint-only project.
+- Data-driven Oxygen, Power, Integrity and Stamina; outside drain, sanctuary refill, real sprint depletion/exhaustion, warning audio cooldown, power-zero flashlight shutdown, storm wear, clone identity/respawn, one recoverable cache and basic save/load. Cache payload is a scalar scrap-count contract, not full inventory; repeated deaths accumulate pending payload at the latest death site. F5/F9 save/load; E recovery within range. Native/shared rules plus runtime Blueprints; Python is editor authoring/testing only.
+- Furnished walkable habitat with bed, broken fabricator, shelves/services, practical lights, safe interior spawn and E-operated interlocked airlock. Doors pause closure when occupied. This is functional prototype geometry, **not final habitat art**.
+- Actual native PCG graph: landscape/slope sampling, clustered density/noise, strict exclusion masks including route end caps, transform variation and instancing. Final audit: **64 spatial cells, 71,838 rocks, 370 animated dust sheets, 195 noninteractive debris instances**. No old scatter/debris actors remained. Minimum measured rock-centre clearance: ~7.80 m from routes, ~23.49 m from home. These counts are mostly small stones; only a few large cliff/ledge formations were placed. More small stones alone does not solve flat terrain.
+- Larger open-backed scans use overlapping rotated copies in composite assemblies. Nanite enabled for rocks; actual CVars confirm Lumen GI/reflections, Nanite and Virtual Shadow Maps. Runtime World Partition streaming remains enabled.
+- Brighter warm dusty climate: fog .18/.28/.45, sun 96, day sky 2, night sky .0005, storm light multiplier .72, exposure EV100 0, actual scene tint (1,.65,.35) and saturation .75. `Scripts/build_phase3_environment.py` is the final authoring source. Earlier report metadata may still list an abandoned tint; inspect actual saved settings/rebuild source rather than trusting that old field.
+- **All five automated runtime suites passed**: survival, habitat, player, environment and navigation. Navigation used real CharacterMovement through 18 waypoints in day/calm, night/haze and day/storm, ~2 km each at 4x time; resources were topped up to isolate navigation. Airlock traversal was separately checked with survival active. These do not prove physical keyboard, subjective audio or packaged acceptance.
+- Full repeatable authoring builder finished successfully before final checks. Seven-case editor profiling completed. Actual viewport was **691x464 High**, not 1080p; visibility was not asserted. Frame medians 16.649–16.679 ms; p95 17.308–17.429 ms; Home Day max **91.791 ms**, with a corresponding CPU hitch. GPU medians ~2.19–2.48 ms. Loaded cells changed from 64 near home to 16 at the far corner; no runtime PCG generation was observed. **Stable 60+ FPS on representative mid-range hardware remains unproven.**
 
-`/Game/World/Blueprints/BP_DustfallEnvironmentDirector` reads
-`/Game/Data/DA_Environment_Phase2` during gameplay. Python is authoring/testing only.
-The Blueprint data class is `/Game/Data/BP_EnvironmentPhase2Data`.
+## User's new required work: finish Phase 3 environment and habitat art
 
-- `SetWeather(Value)`: integer 0 calm / 1 haze / 2 storm; resets weather age.
-- `SetTimeOfDay(Value)`: normalized 0 midnight / .25 sunrise / .5 noon / .75 sunset.
-- `GetEnvironmentState()`: weather integer, normalized time and storm intensity.
-- `OnEnvironmentChanged`: no-argument dispatcher after updates; query current state.
+The user says the habitat is too square, rough and basic, and the ground feels flat rather than rocky, otherworldly and hostile. Treat this as unfinished work, not an accepted final look.
 
-Defaults: 1800-second day, initial time .65/haze, haze120s → calm180s → haze120s
-→ storm60s → haze. Fog .018 / .045 / **1.0**; blend speed .2 (about 30s settling).
-Sun15, sky .6 day/.002 night, storm light multiplier .22. Warm fog RGB .30/.115/.055.
-Wind .15 to .8 volume. Project-owned synthesized looping SoundWave
-`/Game/Audio/Environment/S_WindBed_Phase2` uses an AudioComponent, not MetaSound.
-Movable sun/sky/fog refs are explicitly assigned; skylight real-time capture enabled.
-These are neutral hooks for future oxygen/power/hidden Strain consumers.
+### Habitat
 
-The Phase 1 data assets are authoring-time only, unlike this runtime data asset.
-Avoid rebuilding atmosphere from Phase 1 values. Blueprint builder removes all
-old generated method variants and compiles before recreating canonical methods;
-this prevents Unreal suffixing names to `SetWeather_0` after repeat builds.
+The existing square/chamfered shell and simple furniture are a functional testing prototype. Replace/refine them toward the supplied **rounded, damaged industrial pod** reference: curved hull, believable panel construction, worn materials/normal/roughness detail, airlock, damaged sections, solar array, antennas, warm windows/practicals and a more convincing lived-in interior. Preserve functional dimensions or deliberately retest capsule clearance, doors, sanctuary bounds and clone spawn after changes. Use suitable existing assets plus Unreal modeling tools or custom Blender/FBX work as needed. Do not describe current primitives as final reference-quality art. Character and ship assets also remain prototypes/reference direction.
 
-## Safe authoring and verification
+### Terrain and hostile geology
 
-- Reuse the open editor where possible. One asset writer only; never run a second
-  editor/asset-writing commandlet against loaded packages. Preserve unrelated
-  unsaved scenes. Save modified external actor AND component packages.
-- Dedicated queue host: `Scripts/editor_session.py`; command file
-  `Saved/Codex/editor_command.py`, result `Saved/Codex/editor_result.txt`.
-  Commands must import their own `unreal`/`runpy`. Callback tests finish later;
-  inspect their JSON status rather than just queue completion.
-- Full build `Scripts/build_phase2.py` rejects existing dirty packages and the wrong
-  map; modules split Quixel import, terrain/scatter, landmarks, routes, debris,
-  wind and runtime environment. Source archives stay ignored; imported assets tracked.
-- `build_environment.py` now delegates to Phase 2. Phase 1 full/world scripts guard
-  against resetting this world. `build_player.py` removes generated graph nodes at
-  reserved coordinates and affects template-parent logic: read it before use.
-  Prefer extending project-owned children, and preserve Enhanced Input bindings.
-- `verify_phase2_editor.py`: ~100s, actual component response after weather blends,
-  day/night, auto weather, clock/query/audio/movement. Relative .5% storm fog tolerance
-  accommodates the asymptotic eased blend at 30s; absolute minimum tolerance .002.
-- `verify_phase1_editor.py`: player regression. `verify_phase2_routes_editor.py`:
-  18 waypoints using CharacterMovement, three conditions, ~2.03 km per case at 4x
-  game time. Navigation tests are not frame-rate benchmarks.
-- `inspect_phase2_assets.py`: texture dimensions/Nanite/convex collision.
-  `profile_phase2_editor.py`: seven steady-state locations, CSV frame times and
-  loaded rock-cell counts. `summarize_phase2_csv.py`: offline median/p95/p99 analysis.
-- Editor background throttle can invalidate timing: settings class is loaded from
-  `/Script/UnrealEd.EditorPerformanceSettings`, exact property
-  `bThrottleCPUWhenNotForeground`. Verification/profile scripts restore it.
-- `preview_phase2_editor.py` changes PIE instances only; see checklist for presets.
+Add **actual landscape relief and geological structure**: hills, mounds, jagged rocky zones/ridges, broken outcrops, craters/depressions, ravines and pitfalls. Vary elevations, slopes, rock sizes, density and silhouettes at several scales. Use terrain-aware seeded PCG for suitable scatter/assemblies/debris; hand-author important geography and traversable approaches. Avoid flat ground decorated with uniformly scattered pebbles, arbitrary floating Z offsets, repeated rock fences or exposed scan backs.
 
-Unrelated user imports `Content/Megascans_8k/` and
-`Content/Megascans_RockyGrass_Source.zip` were intentionally left untracked.
-Do not delete or sweep them into a commit. Never push local backup branch
-`codex/phase1-before-history-cleanup`; its historical generated cache exceeds
-GitHub's limit. Keep generated caches, raw inbox archives and builds out of Git.
+Design navigable exploration and deliberate hazards: preserve clear home/airlock access and useful routes while adding challenging off-route terrain. Pitfalls need readable cues in fog, correct collision, escape/recovery behavior and intentional suit-damage/death integration where applicable. Check death-cache recovery at hazardous locations. Reproject/reseat scatter after terrain edits; update route masks, landmarks, spawn heights and collision rather than leaving existing actors floating or buried. Keep persistent warm dust/sandstorm mood and recognizable silhouettes at 40+ m; daylight must remain readable. Profile Nanite/Lumen, instancing, culling, fog and streaming after this work.
 
-## Phase 3 scope after acceptance
+## Remaining validation and delivery gates
 
-Use the GDD as authority: suit Oxygen, Power, Integrity, Stamina; outside drain
-and habitat refill; walkable habitat sanctuary/interior and airlock; death at
-oxygen/integrity zero, new clone respawn, recoverable death crate, basic save.
-Build small runnable modules and test/commit/push each. The recoverable crate
-can have a minimal data contract; full scavenging/inventory/scanner/lore belongs
-to Phase 4. Crafting/modules/progression belong later.
+1. Finish the habitat and terrain/environment corrections above. Re-run affected native/player/survival/airlock/weather/navigation tests after collision, spawn, terrain or lighting changes. Do not defer the user's explicit environment feedback silently to final polish.
+2. Review normal player-camera texture streaming and visibility at 40/60/100 m, in both views, day/night and settled storm. Four-side art captures with full mips showed retained cliff textures/normal detail. The initial flat-looking distant SceneCapture was a **secondary-camera texture-mip issue**, not missing material/UV data. `capture_phase3_art.py` temporarily requests full used mips and restores its settings. Do not force global texture residency during gameplay or performance tests. No geometry/UV repair was applied after this diagnosis.
+3. **Final dense-layout persistence after a fresh editor/game restart is not checked yet.** The earlier 7,881-instance layout survived restart before the final density increase; do not pass that off as final-layout validation. Compare final audit/layout hashes/counts after reload and verify cooked streaming.
+4. **No Phase 3 Windows package has been built or smoke-tested.** `Builds/Phase2` is the older build. `Scripts/package_phase3.ps1` and `Play_Phase3.cmd` are prepared; they are not evidence of a completed package. Build native Game target/cook/stage/archive, launch the complete Phase 3 Windows folder, check startup/HUD/resources/save/load, visuals, clean exit and logs. Add packaged 1080p High profiling/traversal evidence and inspect PSO/streaming hitches.
+5. Human physical-key, audio and visual acceptance remain open. Use `Docs/Phase3_Playtest_Checklist.md`. Update validation/progress/handoff with actual results; commit/push tested changes according to the project workflow, preserving unrelated imports. No Phase 3 commit/push was made in this chat.
 
-Keep hidden Strain extension points private and data-driven. Do not expose a
-numeric Strain HUD or implement permanent hallucination world changes. Define
-weather-consumer interfaces without putting survival behavior into world builders.
-Preserve Phase 2 climate, route collision and landmark identity while making the
-habitat genuinely walkable. Re-run player/environment/navigation regressions after
-collision, spawn, input or runtime-light changes.
+## Authoring/runtime contracts and practical commands
+
+- One asset writer/editor only. Reuse an appropriate clean editor; do not start a second writer against loaded assets. Save modified external actor/component packages as well as the level. C++ header/source changes require a proper build and editor restart; do not assume hot reload updated Blueprint function signatures.
+- Compile editor: installed `G:\Program Files\UE_5.8\Engine\Build\BatchFiles\Build.bat dustfallEditor Win64 Development -Project=G:\ue\dustfall\dustfall.uproject -WaitMutex -NoHotReloadFromIDE` with the authoring editor closed. Native test filter: `Dustfall.Core`.
+- Dedicated queue host `Scripts/editor_session.py`; queue `Saved/Codex/editor_command.py`, completion/error `Saved/Codex/editor_result.txt`. Commands import their own `unreal`/`runpy`. Callback scripts finish later: inspect their JSON reports rather than just queue completion.
+- `Scripts/build_phase3.py`: full clean editor authoring with serial PCG completion gates; report `Saved/Codex/phase3_build.json`. Individual modules split habitat, survival, HUD, atmosphere, core PCG and PCG debris. Do not run old full Phase 2/world reset builders over this work.
+- `Scripts/load_phase3_authoring_cells.py` uses WorldPartitionBlueprintLibrary actor descriptors/load/pin, excluding HLOD actors, to load editor authoring geometry. It does not disable runtime streaming. Use before whole-world audits/builds; do not mistake unloaded editor cells for missing geometry.
+- `Scripts/verify_phase3_editor.py` runs all five suites serially; report `phase3_verification.json`. It supports `RESUME_AT` only when prior suites in that report actually passed. Individual suite reports stay in Saved/Codex. QA slots are isolated; do not overwrite the user's `Dustfall_Phase3` slot.
+- `inspect_phase3_environment.py`, `capture_phase3_visibility.py`, `capture_phase3_art.py`, `profile_phase3_editor.py`, `summarize_phase3_csv.py` supply audit/visual/performance evidence. Geometry audit/capture/probe helpers require PIE stopped. Read-only StaticMeshEditorSubsystem UV calls during PIE can return misleading zero values; the mesh detail probe now rejects PIE.
+- PCG graph `/Game/World/Phase3/PCG/PCG_DustfallEnvironment`; BP cell `/Game/World/Phase3/Blueprints/BP_DustfallPCGCell`. Graph belongs on the Blueprint component template and generated instances; defer generation until reconstruction settles. Resolve live components after reinstance; stale Python UObject wrappers may be null. Validate actual PCG pin/edge topology: AddEdge can return a node despite a failed connection. Current UE uses a typed Get Landscape node, not an obsolete graph input named Landscape. Difference masks use Binary/Discrete; include route end caps.
+- Habitat `/Game/Habitat/BP_DustfallHabitatDirector`: `HabitatOrigin`, `InteriorSpawn`, `InnerDoor`, `OuterDoor`, callable `DF_RequestAirlock`. Current anchor (0,0,50) cm, spawn (-120,0,198) cm. `Scripts/habitat_layout.py` reads the live saved anchor. Airlock near door 0–4 s, both sealed 4–6 s, far door 6–10 s, cycle ends at 12 s; doorway occupation pauses closure.
+- Survival `/Game/Systems/BP_SurvivalDirector`; tuning `/Game/Data/DA_Survival_Phase3`; methods `GetSuitState`, `SaveProgress`, `LoadProgress`, `RecoverCrate`, `RespawnClone`. Save schema 1, slot `Dustfall_Phase3`. See `Docs/Phase3_Survival.md` for all fields/contracts.
+- Environment `/Game/World/Blueprints/BP_DustfallEnvironmentDirector` reads `/Game/Data/DA_Environment_Phase2`. Preserve `SetWeather`, `SetTimeOfDay`, `GetEnvironmentState`, `OnEnvironmentChanged`. Python is not a gameplay runtime dependency. Keep hidden Strain private; no numeric Strain HUD or permanent hallucination world changes.
+
+## Phase 4 after Phase 3 gates
+
+Implement scavenging/salvage nodes, real inventory and death-cache payload integration, scanner, beacons/home guidance, discoverable lore/logs and initial subtle hidden-Strain symptoms. Provide the first accessible explorable crashed-ship section consistent with the saved wreck reference; additional cruiser rooms/stories can remain later work. Keep the hidden psychological system data-driven and temporary, with reliable critical survival warnings. Crafting, habitat upgrade progression, full decoration and the full hallucination pool remain later phases. Finish runnable tested modules and the packaged Phase 4 build; do not stop after planning.
