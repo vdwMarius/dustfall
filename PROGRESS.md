@@ -1,5 +1,52 @@
 # Development progress
 
+## 2026-11-13 — Phase 5 start: atmosphere retune (M1), exploration core rework (M3a)
+
+Lead: Claude. Workers: Codex Terra medium (M1 scripts, M3a validation fix) and
+Sol medium (M3a). User Phase 4 playtest: shelter far from finished; environment
+acceptable but needs paths and canyons; storms must obscure more; daytime too
+bright. All other Phase 4 checklist items remain open (not reported).
+
+Completed:
+- Repository: the unpushed local commit containing untracked Megascans imports
+  (36 blobs over 100 MB) was redone with docs only and pushed. Imports and
+  `mcp.log` are now ignored. Stale `Docs/CLAUDE.md` removed; root `CLAUDE.md`
+  is authoritative.
+- GDD v1.2 (§8): dim dust-filtered daylight, 40+ m in calm/haze, about 20 m in
+  settled storms.
+- M1: `DA_Environment_Phase2` and level lights retuned through
+  `build_phase3_environment.py`: fog calm/haze/storm .30/.60/2.2, sun 42,
+  day sky .95, storm light x.52, rust fog colour .46/.23/.09.
+- M3a: exploration code split per system (`Systems/`, `UI/`); gameplay literals
+  moved to `UDustfallExplorationTuning` with unchanged defaults; Strain gain is
+  base x stacked modifiers (`SetStrainModifier`), raw value still private;
+  data-driven symptom pool; save schema 3 (beacon ids) with v2 migration that
+  clamps out-of-range values instead of rejecting; node registry replaces
+  per-frame actor iteration.
+
+Tested:
+- Editor build: zero errors, zero warnings. `Dustfall.Core`: 5/5 passed
+  (resource, habitat, modifier stack, save migration, payload overflow).
+- `smoke_phase4_editor.py`: 19/19 after both changes.
+- In-game (PIE, 1495x862) screenshots with human-scale targets at 10/20/30/40 m:
+  `Docs/Phase5/Atmosphere_*.png`. Storm: 20 m visible, 30 m marginal, 40 m gone.
+- Baseline editor profile before the changes, seven stationary cases:
+  frame median 16.6-16.7 ms (60 fps cap), p99 18.8-19.5 ms, worst 27.3 ms,
+  GPU median 3.2-3.6 ms, game thread about 9 ms. All 64 PCG cells (71,682
+  rocks) stay loaded everywhere except the far corner.
+
+Not tested / limits:
+- No packaged build, no traversal or 1080p packaged profile, no night captures.
+- The schema-3 migration has unit tests only; no real schema-2 user save from
+  the packaged build was loaded. Editor save games were backed up to
+  `Saved/SaveGames_backup_pre_schema3`.
+- Behaviour changes: storm and low-suit Strain modifiers now multiply when both
+  apply; a symptom event shows one weighted effect, not both.
+- Look and feel of the new atmosphere needs the user's eyes.
+
+Next: M3b native suit component + Enhanced Input, then habitat module kit and
+shelter finish, paths and canyons, performance lock.
+
 ## 2026-11-13 — main-only delivery and Phase 5 handoff
 
 Prepared `HANDOFF_Phase5.md` with current native/Blueprint contracts, asset

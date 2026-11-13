@@ -81,7 +81,8 @@ try:
     dark = unreal.load_asset('/Game/Habitat/Materials/M_P3_Hab_Charcoal')
     rock = unreal.load_asset('/Game/World/Phase3/Meshes/SM_PCG_xgkmfcy')
     if not rock: raise RuntimeError('Build native PCG rock assets first')
-    for index,distance in enumerate([4000.,6000.,10000.]):
+    for index,distance_m in enumerate(globals().get('TARGET_DISTANCES_M',[40.,60.,100.])):
+        distance = distance_m * 100.
         for kind,angle in [('human',-21+index*14),('boulder',-15+index*14)]:
             r = math.radians(angle)
             x,y = cx+distance*math.cos(r),cy+distance*math.sin(r)

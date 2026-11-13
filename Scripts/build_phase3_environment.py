@@ -8,15 +8,23 @@ import pathlib
 import unreal
 
 ROOT = pathlib.Path(unreal.Paths.project_dir())
-TUNING = {'CalmFogDensity': .18, 'HazeFogDensity': .28, 'StormFogDensity': .45,
-          'SunIntensity': 96., 'DaySkyIntensity': 2.0, 'NightSkyIntensity': .0005,
-          'StormLightMultiplier': .72, 'WeatherBlendSpeed': .2,
-          'FogRed': .46, 'FogGreen': .29, 'FogBlue': .16,
+TUNING = {'CalmFogDensity': .30, 'HazeFogDensity': .60, 'StormFogDensity': 2.2,
+          'SunIntensity': 42., 'DaySkyIntensity': .95, 'NightSkyIntensity': .0005,
+          'StormLightMultiplier': .52, 'WeatherBlendSpeed': .2,
+          'FogRed': .46, 'FogGreen': .23, 'FogBlue': .09,
           'WindBaseVolume': .25, 'WindStormVolume': .8}
 DAY_EXPOSURE_EV100 = 0.
 
 
 def main():
+    override_path = ROOT/'Saved/Codex/atmosphere_override.json'
+    override = json.loads(override_path.read_text()) if override_path.exists() else {}
+    if not isinstance(override, dict):
+        raise ValueError('Atmosphere override must be a JSON object')
+    unknown = set(override) - set(TUNING)
+    if unknown:
+        raise ValueError('Unknown atmosphere override keys: ' + ', '.join(sorted(unknown)))
+    TUNING.update(override)
     world = unreal.EditorLevelLibrary.get_editor_world()
     if '/Game/World/Maps/L_Dustfall_Foundation' not in world.get_path_name():
         raise RuntimeError('Open the foundation map first')
@@ -107,9 +115,10 @@ def main():
               'color_saturation':.75,
               'volumetric_light_color_override':True,
               'atmosphere_baseline_restored':True,
-              'visibility_target_m':40, 'runtime_contract_preserved':True}
+              'visibility_target_m':{'calm_haze':40, 'storm':20},
+              'applied_override':override, 'runtime_contract_preserved':True}
     (ROOT/'Saved/Codex/phase3_environment_build.json').write_text(json.dumps(report,indent=2))
-    unreal.log('Phase 3 atmosphere tuned: brighter persistent dust; verify 40/60/100 m silhouettes')
+    unreal.log('Phase 3 atmosphere tuned: dust-filtered daylight; verify 40 m calm/haze and 20 m storm silhouettes')
 
 
 if __name__ == '__main__':
