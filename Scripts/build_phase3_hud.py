@@ -32,7 +32,10 @@ def val(n, p, v):
 
 def build():
     survival = require(unreal.load_asset('/Game/Systems/BP_SurvivalDirector'), 'Build survival first')
-    tuning_bp = require(unreal.load_asset('/Game/Data/BP_SurvivalData'), 'Survival tuning class')
+    # Phase 5: once BP_SurvivalDirector is parented to the native director its
+    # Tuning property is a UDustfallSurvivalTuning, so read maxima from that class.
+    native = hasattr(unreal, 'DustfallSurvivalDirector') and         BEL.get_blueprint_parent_class(survival) == unreal.DustfallSurvivalDirector.static_class()
+    tuning_class_path = '/Script/dustfall.DustfallSurvivalTuning' if native else         require(unreal.load_asset('/Game/Data/BP_SurvivalData'), 'Survival tuning class').generated_class().get_path_name()
     path = '/Game/UI/BP_DustfallSuitHUD'
     bp = unreal.load_asset(path)
     if not bp:
@@ -92,7 +95,7 @@ def build():
         text(label, 30, y, scale=.75)
         rect(116, y + 5, 160, 8, '(R=0.11,G=0.12,B=0.12,A=1)')
         stat = get(name)
-        maximum = require(ed.add_get_member_variable_node(unreal.Name('Max' + name), tuning_bp.generated_class().get_path_name()), 'Maximum ' + name)
+        maximum = require(ed.add_get_member_variable_node(unreal.Name('Max' + name), tuning_class_path), 'Maximum ' + name)
         wire(tuning, 'Tuning', maximum, 'self')
         safe = call('KismetMathLibrary:FMax')
         wire(maximum, 'Max' + name, safe, 'A')
@@ -138,8 +141,11 @@ def build():
     require(BEL.compile_blueprint(bp), 'HUD compilation: ' + str(list(ed.list_nodes_with_errors())))
     require(LIB.save_loaded_asset(bp, False), 'Save HUD')
     mode = require(unreal.load_asset('/Game/Core/BP_DustfallGameMode'), 'GameMode')
-    unreal.get_default_object(mode.generated_class()).set_editor_property('hud_class', bp.generated_class())
-    require(LIB.save_loaded_asset(mode, False), 'Save GameMode HUD assignment')
+    # This is the historical Phase 3 HUD. Never replace the native Phase 4+
+    # exploration HUD unless a caller explicitly asks (ASSIGN_LEGACY_HUD=True).
+    if globals().get('ASSIGN_LEGACY_HUD', not hasattr(unreal, 'DustfallExplorationHUD')):
+        unreal.get_default_object(mode.generated_class()).set_editor_property('hud_class', bp.generated_class())
+        require(LIB.save_loaded_asset(mode, False), 'Save GameMode HUD assignment')
     root = pathlib.Path(unreal.Paths.project_dir())
     (root / 'Saved/Codex/phase3_hud_build.json').write_text(json.dumps({'status': 'built', 'hud': path, 'graph_errors': len(ed.list_nodes_with_errors())}, indent=2))
 
