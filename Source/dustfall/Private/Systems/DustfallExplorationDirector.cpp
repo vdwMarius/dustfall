@@ -1,55 +1,21 @@
-#include "DustfallExploration.h"
+#include "Systems/DustfallExplorationDirector.h"
+#include "DustfallSurvivalBridge.h"
 #include "DustfallTerrainHazardDirector.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Materials/MaterialInterface.h"
 #include "Components/TextRenderComponent.h"
-#include "Engine/Canvas.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "InputCoreTypes.h"
 #include "Kismet/GameplayStatics.h"
 #include "UObject/ConstructorHelpers.h"
-#include "UObject/UnrealType.h"
+
+using namespace DustfallSurvivalBridge;
 
 namespace
 {
-double Number(const UObject* Object, FName Name)
-{
-    if (!Object) return 0;
-    const FProperty* Property = Object->GetClass()->FindPropertyByName(Name);
-    if (const FNumericProperty* Numeric = CastField<FNumericProperty>(Property))
-    {
-        const void* Address = Numeric->ContainerPtrToValuePtr<void>(Object);
-        return Numeric->IsInteger() ? double(Numeric->GetSignedIntPropertyValue(Address)) : Numeric->GetFloatingPointPropertyValue(Address);
-    }
-    if (const FBoolProperty* Boolean = CastField<FBoolProperty>(Property)) return Boolean->GetPropertyValue_InContainer(Object) ? 1 : 0;
-    return 0;
-}
-void SetNumber(UObject* Object, FName Name, double Value)
-{
-    if (!Object) return;
-    FProperty* Property = Object->GetClass()->FindPropertyByName(Name);
-    if (FNumericProperty* Numeric = CastField<FNumericProperty>(Property))
-    {
-        void* Address = Numeric->ContainerPtrToValuePtr<void>(Object);
-        if (Numeric->IsInteger()) Numeric->SetIntPropertyValue(Address, int64(Value));
-        else Numeric->SetFloatingPointPropertyValue(Address, Value);
-    }
-    if (FBoolProperty* Boolean = CastField<FBoolProperty>(Property)) Boolean->SetPropertyValue_InContainer(Object, Value != 0);
-}
-FVector VectorValue(const UObject* Object, FName Name)
-{
-    if (Object) if (const FStructProperty* P = FindFProperty<FStructProperty>(Object->GetClass(), Name))
-        if (P->Struct == TBaseStructure<FVector>::Get()) return *P->ContainerPtrToValuePtr<FVector>(Object);
-    return FVector::ZeroVector;
-}
-void SetVector(UObject* Object, FName Name, FVector Value)
-{
-    if (Object) if (FStructProperty* P = FindFProperty<FStructProperty>(Object->GetClass(), Name))
-        if (P->Struct == TBaseStructure<FVector>::Get()) *P->ContainerPtrToValuePtr<FVector>(Object) = Value;
-}
 void RebuildBeacons(ADustfallExplorationDirector* Director)
 {
     TArray<AActor*> Old;
@@ -80,40 +46,9 @@ void RebuildBeacons(ADustfallExplorationDirector* Director)
     }
 }
 APawn* Player(const AActor* Context) { return UGameplayStatics::GetPlayerPawn(Context, 0); }
-ADustfallExplorationDirector* FindDirector(UWorld* World)
-{
-    for (TActorIterator<ADustfallExplorationDirector> It(World); It; ++It) return *It;
-    return nullptr;
-}
+
 }
 
-ADustfallSalvageNode::ADustfallSalvageNode()
-{
-    Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("SalvageMesh"));
-    SetRootComponent(Mesh);
-    static ConstructorHelpers::FObjectFinder<UStaticMesh> Shape(TEXT("/Engine/BasicShapes/Cube.Cube"));
-    Mesh->SetStaticMesh(Shape.Object);
-    Mesh->SetRelativeScale3D(FVector(.65, .45, .35));
-    Mesh->SetCollisionProfileName(TEXT("BlockAll"));
-    Label = CreateDefaultSubobject<UTextRenderComponent>(TEXT("InteractionLabel"));
-    Label->SetupAttachment(Mesh);
-    Label->SetRelativeLocation(FVector(0,0,110));
-    Label->SetWorldSize(25);
-    Label->SetTextRenderColor(FColor(240,177,85));
-    Label->SetHorizontalAlignment(EHTA_Center);
-}
-void ADustfallSalvageNode::BeginPlay()
-{
-    Super::BeginPlay();
-    Label->SetText(FText::FromString(DisplayName));
-    if (auto* D = FindDirector(GetWorld())) SetClaimed(D->ClaimedNodes.Contains(StableId));
-}
-void ADustfallSalvageNode::SetClaimed(bool bValue)
-{
-    bClaimed = bValue;
-    SetActorHiddenInGame(bValue);
-    SetActorEnableCollision(!bValue);
-}
 ADustfallExplorationDirector::ADustfallExplorationDirector()
 {
     PrimaryActorTick.bCanEverTick = true;
@@ -127,15 +62,14 @@ void ADustfallExplorationDirector::BeginPlay()
 {
     Super::BeginPlay();
     if (!Tuning) Tuning = NewObject<UDustfallExplorationTuning>(this);
-    if (!SurvivalDirector)
-        for (TActorIterator<AActor> It(GetWorld()); It; ++It)
-            if (It->GetClass()->FindPropertyByName(TEXT("CloneGeneration")) && It->GetClass()->FindPropertyByName(TEXT("CrateScrap"))) { SurvivalDirector = *It; break; }
+    SymptomRandom.Initialize(Tuning->SymptomSeed);
+    if (!SurvivalDirector) SurvivalDirector = DustfallSurvivalBridge::FindDirector(GetWorld());
     if (SurvivalDirector)
     {
         AddTickPrerequisiteActor(SurvivalDirector);
-        if (const FObjectProperty* P=FindFProperty<FObjectProperty>(SurvivalDirector->GetClass(),TEXT("EnvironmentDirector")))
-            EnvironmentDirector=Cast<AActor>(P->GetObjectPropertyValue_InContainer(SurvivalDirector));
+        EnvironmentDirector=Cast<AActor>(ObjectValue(SurvivalDirector,TEXT("EnvironmentDirector")));
     }
+    for (TActorIterator<ADustfallSalvageNode> It(GetWorld()); It; ++It) RegisterNode(*It);
     for (TActorIterator<ADustfallTerrainHazardDirector> It(GetWorld()); It; ++It) AddTickPrerequisiteActor(*It);
     StatusMessage = TEXT("Q scanner  |  E salvage / recover  |  Tab inventory  |  J journal  |  B beacon");
 }
@@ -158,32 +92,42 @@ double ADustfallExplorationDirector::SuitValue(FName Name) const { return Number
 FVector ADustfallExplorationDirector::HomeLocation() const { return VectorValue(SurvivalDirector,TEXT("CloneSpawn")); }
 FString ADustfallExplorationDirector::SaveSlot() const
 {
-    if (SurvivalDirector) if (const FStrProperty* P = FindFProperty<FStrProperty>(SurvivalDirector->GetClass(), TEXT("SaveSlotName")))
-        return P->GetPropertyValue_InContainer(SurvivalDirector) + TEXT("_Exploration");
-    return TEXT("Dustfall_Phase4_Exploration");
+    return StringValue(SurvivalDirector,TEXT("SaveSlotName"),TEXT("Dustfall_Phase4")) + TEXT("_Exploration");
 }
 void ADustfallExplorationDirector::CallSurvival(FName FunctionName)
 {
-    if (SurvivalDirector) if (UFunction* F = SurvivalDirector->FindFunction(FunctionName)) SurvivalDirector->ProcessEvent(F,nullptr);
+    Call(SurvivalDirector,FunctionName);
 }
+void ADustfallExplorationDirector::RegisterNode(ADustfallSalvageNode* Node)
+{
+    if (!IsValid(Node)) return;
+    Nodes.AddUnique(Node); Node->RegisteredDirector=this;
+    Node->SetClaimed(ClaimedNodes.Contains(Node->StableId));
+}
+void ADustfallExplorationDirector::UnregisterNode(ADustfallSalvageNode* Node)
+{
+    Nodes.RemoveAll([Node](const TWeakObjectPtr<ADustfallSalvageNode>& Entry) { return !Entry.IsValid() || Entry.Get()==Node; });
+}
+
 void ADustfallExplorationDirector::RefreshNodes()
 {
-    for (TActorIterator<ADustfallSalvageNode> It(GetWorld()); It; ++It) It->SetClaimed(ClaimedNodes.Contains(It->StableId));
+    for (const auto& Entry : Nodes) if (auto* Node=Entry.Get()) Node->SetClaimed(ClaimedNodes.Contains(Node->StableId));
 }
 ADustfallSalvageNode* ADustfallExplorationDirector::NearestNode() const
 {
     APawn* Pawn = Player(this); if (!Pawn || !Tuning) return nullptr;
     ADustfallSalvageNode* Best = nullptr;
     double Range = Tuning->InteractionRange;
-    for (TActorIterator<ADustfallSalvageNode> It(GetWorld()); It; ++It)
+    for (const auto& Entry : Nodes)
     {
+        auto* It=Entry.Get(); if (!It) continue;
         if (It->bClaimed) continue;
         double Distance = FVector::Dist(Pawn->GetActorLocation(), It->GetActorLocation());
         if (Distance < Range)
         {
             FHitResult Hit; FCollisionQueryParams Query(SCENE_QUERY_STAT(DustfallInteraction), false, Pawn);
-            bool bBlocked = GetWorld()->LineTraceSingleByChannel(Hit, Pawn->GetActorLocation()+FVector(0,0,35), It->GetActorLocation(), ECC_Visibility, Query);
-            if (!bBlocked || Hit.GetActor() == *It) { Best = *It; Range = Distance; }
+            bool bBlocked = GetWorld()->LineTraceSingleByChannel(Hit, Pawn->GetActorLocation()+FVector(0,0,Tuning->InteractionTraceHeight), It->GetActorLocation(), ECC_Visibility, Query);
+            if (!bBlocked || Hit.GetActor() == It) { Best = It; Range = Distance; }
         }
     }
     return Best;
@@ -202,7 +146,7 @@ bool ADustfallExplorationDirector::Interact()
         StatusMessage = TEXT("Record archived. J closes journal.");
     }
     else StatusMessage = FString::Printf(TEXT("Recovered %d %s"),Node->Quantity,*Node->ItemId.ToString());
-    Node->SetClaimed(true); SaveExploration(); return true;
+    RefreshNodes(); SaveExploration(); return true;
 }
 bool ADustfallExplorationDirector::PulseScanner()
 {
@@ -215,17 +159,17 @@ bool ADustfallExplorationDirector::PlaceBeacon()
 {
     APawn* Pawn = Player(this); if (!Pawn || !Tuning) return false;
     for (int32 I = Beacons.Num()-1; I >= 0; --I)
-        if (FVector::Dist(Pawn->GetActorLocation(),Beacons[I]) < 300) { Beacons.RemoveAt(I); Inventory.FindOrAdd(TEXT("PowerCell")) += 1; StatusMessage=TEXT("Beacon recovered; PowerCell returned."); RebuildBeacons(this); SaveExploration(); return true; }
+        if (FVector::Dist(Pawn->GetActorLocation(),Beacons[I]) < Tuning->BeaconRecoverRange) { Beacons.RemoveAt(I); BeaconRecords.RemoveAt(I); MergePayload(Inventory, {{TEXT("PowerCell"),Tuning->BeaconPowerCellCost}}); StatusMessage=Tuning->BeaconPowerCellCost==1 ? TEXT("Beacon recovered; PowerCell returned.") : FString::Printf(TEXT("Beacon recovered; %d PowerCell returned."),Tuning->BeaconPowerCellCost); RebuildBeacons(this); SaveExploration(); return true; }
     if (Beacons.Num() >= Tuning->MaximumBeacons) { StatusMessage=TEXT("Beacon limit reached. B near a beacon recovers it."); return false; }
     int32* Cells = Inventory.Find(TEXT("PowerCell"));
-    if (!Cells || *Cells < 1) { StatusMessage=TEXT("Beacon requires one salvaged PowerCell."); return false; }
-    if (--*Cells == 0) Inventory.Remove(TEXT("PowerCell"));
-    Beacons.Add(Pawn->GetActorLocation()); StatusMessage=TEXT("Beacon placed. B nearby recovers the marker."); RebuildBeacons(this); SaveExploration(); return true;
+    if (!Cells || Tuning->BeaconPowerCellCost<=0 || *Cells < Tuning->BeaconPowerCellCost) { StatusMessage=Tuning->BeaconPowerCellCost==1 ? TEXT("Beacon requires one salvaged PowerCell.") : FString::Printf(TEXT("Beacon requires %d salvaged PowerCell."),Tuning->BeaconPowerCellCost); return false; }
+    if ((*Cells -= Tuning->BeaconPowerCellCost) == 0) Inventory.Remove(TEXT("PowerCell"));
+    FDustfallBeaconRecord Record; Record.Id=FGuid::NewGuid(); Record.Location=Pawn->GetActorLocation(); BeaconRecords.Add(Record); Beacons.Add(Record.Location); StatusMessage=TEXT("Beacon placed. B nearby recovers the marker."); RebuildBeacons(this); SaveExploration(); return true;
 }
 bool ADustfallExplorationDirector::RecoverInventory()
 {
     APawn* Pawn = Player(this);
-    if (!Pawn || RecoveryInventory.IsEmpty() || !SuitValue(TEXT("CrateActive")) || FVector::Dist(Pawn->GetActorLocation(), VectorValue(SurvivalDirector,TEXT("CrateLocation"))) > 250) return false;
+    if (!Pawn || !Tuning || RecoveryInventory.IsEmpty() || !SuitValue(TEXT("CrateActive")) || FVector::Dist(Pawn->GetActorLocation(), VectorValue(SurvivalDirector,TEXT("CrateLocation"))) > Tuning->CrateRecoverRange) return false;
     // Recovery may exceed carrying capacity: existing player property is never discarded.
     MergePayload(Inventory,RecoveryInventory); RecoveryInventory.Empty();
     CallSurvival(TEXT("RecoverCrate")); bPreviousCrateActive = false;
@@ -238,7 +182,7 @@ void ADustfallExplorationDirector::SynchronizeSurvival()
     if (Clone > LastClone)
     {
         MergePayload(RecoveryInventory, Inventory); Inventory.Empty();
-        PrivateStrain=FMath::Min(100.f,PrivateStrain+4.f);
+        PrivateStrain=FMath::Min(100.f,PrivateStrain+Tuning->DeathStrainGain);
         LastClone=Clone; bPreviousCrateActive=bCrate;
         SetNumber(SurvivalDirector,TEXT("CarriedScrap"),0); SetNumber(SurvivalDirector,TEXT("CrateScrap"),0);
         StatusMessage=TEXT("New clone online. Carried items remain in your recovery crate."); SaveExploration();
@@ -260,7 +204,7 @@ bool ADustfallExplorationDirector::SaveExploration()
 {
     if (!SurvivalDirector || !Player(this)) return false;
     auto* Save = Cast<UDustfallExplorationSave>(UGameplayStatics::CreateSaveGameObject(UDustfallExplorationSave::StaticClass()));
-    Save->Inventory=Inventory; Save->RecoveryInventory=RecoveryInventory; Save->ClaimedNodes=ClaimedNodes; Save->Journal=Journal; Save->Beacons=Beacons;
+    Save->Inventory=Inventory; Save->RecoveryInventory=RecoveryInventory; Save->ClaimedNodes=ClaimedNodes; Save->Journal=Journal; Save->Beacons=Beacons; Save->BeaconRecords=BeaconRecords;
     Save->PrivateStrain=PrivateStrain; Save->SymptomIntensity=SymptomIntensity;
     Save->PlayerLocation=Player(this)->GetActorLocation(); Save->CrateLocation=VectorValue(SurvivalDirector,TEXT("CrateLocation"));
     Save->bCrateActive=SuitValue(TEXT("CrateActive")) != 0; Save->CloneGeneration=int32(SuitValue(TEXT("CloneGeneration")));
@@ -285,11 +229,11 @@ bool ADustfallExplorationDirector::LoadExploration()
     }
     else
     {
-        if (Save->Version != 2) { StatusMessage=TEXT("Unsupported exploration save version; current session retained."); return false; }
-        for (const auto& Item : Save->Inventory) if (Item.Key.IsNone() || Item.Value<=0) { StatusMessage=TEXT("Invalid inventory save; session retained."); return false; }
-        for (const auto& Item : Save->RecoveryInventory) if (Item.Key.IsNone() || Item.Value<=0) { StatusMessage=TEXT("Invalid recovery save; session retained."); return false; }
-        if (!FMath::IsFinite(Save->PrivateStrain) || Save->PlayerLocation.ContainsNaN() || Save->CrateLocation.ContainsNaN() || !FMath::IsFinite(Save->Oxygen) || !FMath::IsFinite(Save->Power) || !FMath::IsFinite(Save->Integrity) || !FMath::IsFinite(Save->Stamina)) return false;
-        Inventory=Save->Inventory; RecoveryInventory=Save->RecoveryInventory; ClaimedNodes=Save->ClaimedNodes; Journal=Save->Journal; Beacons=Save->Beacons;
+        auto* Validated=NewObject<UDustfallExplorationSave>();
+        if (!UDustfallExplorationSave::ValidateAndMigrate(*Save,*Validated)) { StatusMessage=TEXT("Invalid exploration save; session retained."); return false; }
+        Save=Validated;
+        Inventory=Save->Inventory; RecoveryInventory=Save->RecoveryInventory; ClaimedNodes=Save->ClaimedNodes; Journal=Save->Journal; BeaconRecords=Save->BeaconRecords; Beacons.Empty();
+        for (const auto& Record : BeaconRecords) Beacons.Add(Record.Location);
         PrivateStrain=FMath::Clamp(Save->PrivateStrain,0.f,100.f); SetSymptomIntensity(Save->SymptomIntensity);
         SetNumber(SurvivalDirector,TEXT("Oxygen"),Save->Oxygen); SetNumber(SurvivalDirector,TEXT("Power"),Save->Power);
         SetNumber(SurvivalDirector,TEXT("Integrity"),Save->Integrity); SetNumber(SurvivalDirector,TEXT("Stamina"),Save->Stamina);
@@ -307,18 +251,22 @@ void ADustfallExplorationDirector::Tick(float DeltaSeconds)
     Super::Tick(DeltaSeconds); Age+=DeltaSeconds;
     if (!bInitialized)
     {
-        if (Age>.35f && SurvivalDirector && Player(this)) { LoadExploration(); bInitialized=true; }
+        if (Age>Tuning->FirstLoadDelay && SurvivalDirector && Player(this)) { LoadExploration(); bInitialized=true; }
         return;
     }
-    SynchronizeSurvival(); RefreshNodes();
+    SynchronizeSurvival();
     ScannerRemaining=FMath::Max(0.f,ScannerRemaining-DeltaSeconds); ScannerCooldownRemaining=FMath::Max(0.f,ScannerCooldownRemaining-DeltaSeconds);
     const bool bHome=SuitValue(TEXT("InHabitat")) != 0;
-    const float Danger=(SuitValue(TEXT("Oxygen"))<20 || SuitValue(TEXT("Integrity"))<30) ? .08f : 0;
-    PrivateStrain=FMath::Clamp(PrivateStrain+DeltaSeconds*(bHome ? -Tuning->HomeStrainRecoveryPerSecond : Tuning->OutsideStrainPerSecond+Danger+Tuning->StormStrainPerSecond*FMath::Clamp(float(Number(EnvironmentDirector,TEXT("StormIntensity"))),0.f,1.f)),0.f,100.f);
+    FDustfallModifierStack FrameModifiers;
+    FrameModifiers.Set(TEXT("Weather"),1.f+Tuning->StormStrainMultiplier*FMath::Clamp(float(Number(EnvironmentDirector,TEXT("StormIntensity"))),0.f,1.f));
+    const bool bLowSuit=SuitValue(TEXT("Oxygen"))<Tuning->LowOxygenStrainThreshold || SuitValue(TEXT("Integrity"))<Tuning->LowIntegrityStrainThreshold;
+    FrameModifiers.Set(TEXT("LowSuit"), bLowSuit ? Tuning->LowSuitStrainMultiplier : 1.f);
+    const float OutsideRate=StrainModifiers.Evaluate(FrameModifiers.Evaluate(Tuning->OutsideStrainPerSecond));
+    PrivateStrain=FMath::Clamp(PrivateStrain+DeltaSeconds*(bHome ? -Tuning->HomeStrainRecoveryPerSecond : OutsideRate),0.f,100.f);
     SymptomRemaining=FMath::Max(0.f,SymptomRemaining-DeltaSeconds); SymptomElapsed+=DeltaSeconds;
     if (bHome) SymptomRemaining=0;
     else if (SymptomIntensity>0 && PrivateStrain>=Tuning->SymptomThreshold && SymptomElapsed>Tuning->SymptomInterval)
-    { SymptomRemaining=3*SymptomIntensity; SymptomElapsed=0; }
+    { PickSymptom(); SymptomElapsed=0; }
     if (APlayerController* PC=UGameplayStatics::GetPlayerController(this,0))
     {
         if (PC->WasInputKeyJustPressed(EKeys::Tab)) bInventoryOpen=!bInventoryOpen;
@@ -331,5 +279,21 @@ void ADustfallExplorationDirector::Tick(float DeltaSeconds)
         if (PC->WasInputKeyJustPressed(EKeys::F8)) { SetSymptomIntensity(SymptomIntensity>0 ? 0 : 1); SaveExploration(); StatusMessage=SymptomIntensity>0 ? TEXT("Subtle symptoms enabled.") : TEXT("Symptoms disabled."); }
     }
     SaveElapsed+=DeltaSeconds;
-    if (SaveElapsed>=30) { SaveExploration(); SaveElapsed=0; }
+    if (SaveElapsed>=Tuning->AutosaveInterval) { SaveExploration(); SaveElapsed=0; }
+}
+
+void ADustfallExplorationDirector::SetStrainModifier(FName Source,float Multiplier) { StrainModifiers.Set(Source,Multiplier); }
+void ADustfallExplorationDirector::ClearStrainModifier(FName Source) { StrainModifiers.Clear(Source); }
+void ADustfallExplorationDirector::PickSymptom()
+{
+    double Total=0;
+    auto Eligible=[this](const FDustfallSymptomDefinition& S) { return !S.Id.IsNone() && FMath::IsFinite(S.Weight) && S.Weight>0 && FMath::IsFinite(S.MinimumStrain) && PrivateStrain>=S.MinimumStrain && FMath::IsFinite(S.Duration) && S.Duration>=0; };
+    for (const auto& S : Tuning->Symptoms) if (Eligible(S)) Total+=S.Weight;
+    if (Total<=0) return;
+    double Pick=SymptomRandom.FRand()*Total;
+    for (const auto& S : Tuning->Symptoms) if (Eligible(S))
+    {
+        Pick-=S.Weight;
+        if (Pick<=0) { CurrentSymptom.Kind=S.Kind; CurrentSymptom.Text=S.Text; SymptomRemaining=(S.Duration>0 ? S.Duration : Tuning->SymptomDuration)*SymptomIntensity; return; }
+    }
 }

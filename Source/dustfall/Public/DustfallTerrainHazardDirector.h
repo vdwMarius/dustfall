@@ -15,6 +15,7 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite) TObjectPtr<AActor> SurvivalDirector;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) float SafeImpactSpeed = 1050;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) float DamagePerExcessSpeed = .065f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite) float KillHeight = -20000;
     UPROPERTY(BlueprintReadOnly) FVector LastSafeLocation;
     UPROPERTY(BlueprintReadOnly) float LastImpactDamage = 0;
 private:
