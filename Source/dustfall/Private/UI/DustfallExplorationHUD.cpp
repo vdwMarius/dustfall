@@ -1,4 +1,5 @@
-#include "DustfallExploration.h"
+#include "UI/DustfallExplorationHUD.h"
+#include "Systems/DustfallExplorationDirector.h"
 #include "Engine/Canvas.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
@@ -8,9 +9,10 @@ void ADustfallExplorationHUD::DrawHUD()
 {
     Super::DrawHUD();
     if (!Canvas || !PlayerOwner) return;
-    ADustfallExplorationDirector* D=nullptr;
-    for (TActorIterator<ADustfallExplorationDirector> It(GetWorld()); It; ++It) { D=*It; break; }
-    if (!D) return;
+    if (!CachedDirector.IsValid())
+        for (TActorIterator<ADustfallExplorationDirector> It(GetWorld()); It; ++It) { CachedDirector=*It; break; }
+    ADustfallExplorationDirector* D=CachedDirector.Get();
+    if (!D || !D->Tuning) return;
     const FLinearColor Amber(.95f,.72f,.38f,1), Cyan(.45f,.8f,.86f,1), Red(1,.28f,.12f,1);
     const float W=Canvas->SizeX, H=Canvas->SizeY;
     auto Text=[&](const FString& S,float X,float Y,float Scale=1.f,FLinearColor C=FLinearColor(.95f,.72f,.38f,1))
@@ -29,8 +31,8 @@ void ADustfallExplorationHUD::DrawHUD()
     }
     Text(D->SuitValue(TEXT("InHabitat")) ? TEXT("HABITAT / PRESSURIZED") : TEXT("EXTERIOR / SUIT SEALED"),30,182,.8f);
     Text(FString::Printf(TEXT("CLONE %03d"),int32(D->SuitValue(TEXT("CloneGeneration")))),20,226,.8f);
-    if (D->SuitValue(TEXT("Oxygen"))<=20) Text(TEXT("LOW OXYGEN - RETURN TO HABITAT"),20,254,1,Red);
-    if (D->SuitValue(TEXT("Integrity"))<=20) Text(TEXT("CRITICAL SUIT INTEGRITY"),20,278,1,Red);
+    if (D->SuitValue(TEXT("Oxygen"))<=D->Tuning->HudLowOxygenThreshold) Text(TEXT("LOW OXYGEN - RETURN TO HABITAT"),20,254,1,Red);
+    if (D->SuitValue(TEXT("Integrity"))<=D->Tuning->HudCriticalIntegrityThreshold) Text(TEXT("CRITICAL SUIT INTEGRITY"),20,278,1,Red);
     APawn* Pawn=UGameplayStatics::GetPlayerPawn(this,0);
     if (!Pawn) return;
     FVector HomeDelta=D->HomeLocation()-Pawn->GetActorLocation();
@@ -53,13 +55,17 @@ void ADustfallExplorationHUD::DrawHUD()
     if(D->ScannerRemaining>0)
     {
         Text(FString::Printf(TEXT("SCANNER ACTIVE %.1fs"),D->ScannerRemaining),W*.5f-110,50,.8f,Cyan);
-        for(TActorIterator<ADustfallSalvageNode> It(GetWorld());It;++It)
-            if(!It->bClaimed && FVector::Dist(Pawn->GetActorLocation(),It->GetActorLocation())<=D->Tuning->ScannerRange)
+        for(const auto& Entry : D->GetNodes())
+            if(auto* It=Entry.Get(); It && !It->bClaimed && FVector::Dist(Pawn->GetActorLocation(),It->GetActorLocation())<=D->Tuning->ScannerRange)
                 Marker(It->GetActorLocation(),It->DisplayName,It->LoreText.IsEmpty()?Amber:Cyan,false);
     }
-    if (D->IsSymptomActive() && D->ScannerRemaining>0)
-        Marker(Pawn->GetActorLocation()+PlayerOwner->GetControlRotation().Vector()*6500+FVector(0,1300,0),TEXT("UNRESOLVED ECHO"),FLinearColor(.55f,.65f,.62f,.55f),false);
-    if (D->IsSymptomActive()) Text(TEXT("COMMS / faint carrier overlap"),W-285,H-125,.75f,FLinearColor(.6f,.65f,.58f,.6f));
+    if (const auto* Symptom=D->ActiveSymptom())
+    {
+        if (Symptom->Kind==EDustfallSymptomKind::ScannerEcho && D->ScannerRemaining>0)
+            Marker(Pawn->GetActorLocation()+PlayerOwner->GetControlRotation().Vector()*D->Tuning->ScannerEchoOffset.X+FVector(0,D->Tuning->ScannerEchoOffset.Y,D->Tuning->ScannerEchoOffset.Z),Symptom->Text,FLinearColor(.55f,.65f,.62f,.55f),false);
+        else if (Symptom->Kind==EDustfallSymptomKind::HudText)
+            Text(Symptom->Text,W-285,H-125,.75f,FLinearColor(.6f,.65f,.58f,.6f));
+    }
     if(auto* Node=D->NearestNode()) Text(TEXT("E  ")+Node->DisplayName,W*.5f-100,H*.68f,1,Amber);
     Text(D->StatusMessage,22,H-84,.8f);
     Text(TEXT("Q SCAN   E INTERACT   TAB INVENTORY   J JOURNAL   B BEACON   F5 SAVE / F9 LOAD   F8 SYMPTOMS"),22,H-56,.7f);
