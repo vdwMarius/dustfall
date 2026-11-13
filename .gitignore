@@ -84,3 +84,8 @@ __pycache__/
 
 # Local packaged playtest builds.
 /Builds/
+
+# Local user imports and logs (never commit)
+Content/Megascans_8k/
+Content/Megascans_RockyGrass_Source.zip
+mcp.log
