@@ -55,6 +55,11 @@ def main():
     shot('worn_path_eye',[a[0],a[1],a[2]+170],[b[0],b[1],b[2]+170])
     shot('overview_south',[-70000,-85000,65000],[0,-30000,0])
     shot('overview_north',[75000,80000,85000],[0,15000,0])
+    for field in data['features']:
+        if field['type']!='spire_base': continue
+        x,y,rx,ry,_,_=field['parameters']
+        shot(field['id']+'_silhouette',point(x-rx,y-ry),point(x,y,field['dressing']['height_cm'][1]*.55))
+    shot('flat_scatter_bare_patches',point(10000,18000),point(15000,22000,100))
     source=next(a for a in actors.get_all_level_actors() if a.get_class().get_name()=='BP_SurvivalDirector_C')
     original=source.get_editor_property('SaveSlotName');qa='Dustfall_Phase5_TerrainCapture_QA'
     state=dict(stage='start',since=time.monotonic(),index=0,handle=None,camera=None,world=None,ending=False)
