@@ -1,5 +1,46 @@
 # Development progress
 
+## 2026-11-13 — M3b: native survival director, Enhanced Input
+
+Lead: Claude. Workers: Codex Sol medium (M3b-1 C++, M3b-2 input, M3b-3 scripts).
+
+Completed:
+- `ADustfallSurvivalDirector` (C++) ports the script-generated Blueprint
+  survival rules with identical defaults: drain/refill, sprint exhaustion,
+  death, clone respawn, crate, legacy schema-1 save. Each rate has a modifier
+  stack (`SetSuitModifier`) and capacities accept bonuses (`SetCapacityBonus`).
+- `/Game/Systems/BP_SurvivalDirector` reparented to it by
+  `build_phase5_survival_native.py`; Blueprint graphs/variables removed, all 26
+  values, object references and the level actor identity preserved. New native
+  tuning asset `/Game/Data/DA_Survival` copied from `DA_Survival_Phase3`
+  (old asset kept). Backups: `Saved/Codex/Backup_M3b3/`.
+- Exploration actions use Enhanced Input (`/Game/Player/Input/IA_Dustfall_*`,
+  `IMC_DustfallExploration`, `/Game/Data/DA_Input_Dustfall`); raw key polling
+  remains only as a fallback when no config is assigned.
+- The historical Phase 3 HUD Blueprint was rebuilt against the native tuning
+  class so it compiles; the game HUD is still the native exploration HUD.
+  `build_phase3_hud.py` no longer reassigns the GameMode HUD by default.
+
+Tested:
+- Editor build: zero errors, zero warnings. `Dustfall.Core`: 7/7.
+- `smoke_phase4_editor.py` 19/19 and new `smoke_phase5_editor.py` 45/45
+  (oxygen drain -0.12/s, 2x modifier -0.24/s, cleared -0.12/s, refill +8/s,
+  capacity bonus, death/clone/crate, save round-trip). Log confirms the
+  Enhanced Input path is active in PIE.
+
+Not tested / limits:
+- Physical keys (E/Q/Tab/J/B/F5/F9/F8), E at the airlock versus E on salvage,
+  and Shift sprint feel: user playtest only. No packaged build yet.
+- The native director still binds raw E/F5/F9 for crate/save/load exactly as
+  the Blueprint did (kept for parity); to be folded into the input config.
+- Exploration HUD bars still assume a maximum of 100; fix with suit upgrades.
+- Unreal Python gaps found live and worked around in the scripts:
+  `Blueprint.ubergraph_pages` is not exposed; `unreal.Key()` takes no arguments.
+- Editor note: force-closing the editor with a dirty package makes the next
+  start block on a restore dialog; delete `Saved/Autosaves/PackageRestoreData.json`.
+
+Next: habitat module kit + shelter finish, paths and canyons, performance lock.
+
 ## 2026-11-13 — Phase 5 start: atmosphere retune (M1), exploration core rework (M3a)
 
 Lead: Claude. Workers: Codex Terra medium (M1 scripts, M3a validation fix) and

@@ -109,7 +109,9 @@ def main(report):
     context = asset(CONTEXT, unreal.InputMappingContext, unreal.InputMappingContext_Factory())
     context.unmap_all()
     for action, _, key in actions:
-        context.map_key(action, unreal.Key(key_name=key))
+        mapped_key = unreal.Key()  # unreal.Key takes no constructor arguments in this build (probed live)
+        mapped_key.set_editor_property('key_name', key)
+        context.map_key(action, mapped_key)
     factory = unreal.DataAssetFactory()
     factory.set_editor_property('data_asset_class', unreal.DustfallInputConfig)
     config = asset(CONFIG, unreal.DustfallInputConfig, factory)
