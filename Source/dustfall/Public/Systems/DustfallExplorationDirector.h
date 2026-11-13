@@ -15,7 +15,9 @@ class DUSTFALL_API ADustfallExplorationDirector : public AActor
 public:
     ADustfallExplorationDirector();
     virtual void BeginPlay() override;
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
     virtual void Tick(float DeltaSeconds) override;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input") TObjectPtr<class UDustfallInputConfig> InputConfig;
     UPROPERTY(VisibleDefaultsOnly) TObjectPtr<class UStaticMesh> BeaconMesh;
     UPROPERTY(VisibleDefaultsOnly) TObjectPtr<class UMaterialInterface> BeaconMaterial;
     UPROPERTY(EditAnywhere, BlueprintReadWrite) TObjectPtr<UDustfallExplorationTuning> Tuning;
@@ -55,6 +57,17 @@ public:
     bool HasRecoveredPayload() const { return RecoveryInventory.Num() > 0; }
     static void MergePayload(TMap<FName, int32>& Target, const TMap<FName, int32>& Source);
 private:
+    void UpdateInputBindings();
+    void RemoveInputBindings();
+    TWeakObjectPtr<class UEnhancedInputComponent> BoundInputComponent;
+    TWeakObjectPtr<class UEnhancedInputLocalPlayerSubsystem> BoundInputSubsystem;
+    TWeakObjectPtr<class UInputMappingContext> BoundMappingContext;
+    TWeakObjectPtr<class UDustfallInputConfig> BoundInputConfig;
+    TWeakObjectPtr<class APawn> BoundInputPawn;
+    TArray<uint32> InputBindingHandles;
+    uint8 PendingInputActions = 0;
+    bool bAddedInputContext = false;
+    bool bLoggedInputPath = false;
     UPROPERTY(Transient) TObjectPtr<AActor> EnvironmentDirector;
     TArray<TWeakObjectPtr<ADustfallSalvageNode>> Nodes;
     TArray<FDustfallBeaconRecord> BeaconRecords;
