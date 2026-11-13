@@ -39,6 +39,11 @@ Not tested / limits:
 - Editor note: force-closing the editor with a dirty package makes the next
   start block on a restore dialog; delete `Saved/Autosaves/PackageRestoreData.json`.
 
+Interim package: `Builds/Phase5/Windows/Play_DUSTFALL.cmd` (cook 0 errors,
+0 warnings). Isolated 600-frame startup smoke: exit 0, foundation map loaded,
+no runtime errors, Enhanced Input path active. Not a gameplay, traversal or
+performance test.
+
 Next: habitat module kit + shelter finish, paths and canyons, performance lock.
 
 ## 2026-11-13 — Phase 5 start: atmosphere retune (M1), exploration core rework (M3a)
