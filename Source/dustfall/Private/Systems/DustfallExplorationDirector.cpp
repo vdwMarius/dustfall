@@ -9,6 +9,13 @@
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "InputCoreTypes.h"
+#include "Player/DustfallInputConfig.h"
+#include "EnhancedInputComponent.h"
+#include "EnhancedInputSubsystems.h"
+#include "InputAction.h"
+#include "InputMappingContext.h"
+#include "Engine/LocalPlayer.h"
+#include "GameFramework/Pawn.h"
 #include "Kismet/GameplayStatics.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -72,6 +79,75 @@ void ADustfallExplorationDirector::BeginPlay()
     for (TActorIterator<ADustfallSalvageNode> It(GetWorld()); It; ++It) RegisterNode(*It);
     for (TActorIterator<ADustfallTerrainHazardDirector> It(GetWorld()); It; ++It) AddTickPrerequisiteActor(*It);
     StatusMessage = TEXT("Q scanner  |  E salvage / recover  |  Tab inventory  |  J journal  |  B beacon");
+    UpdateInputBindings();
+}
+void ADustfallExplorationDirector::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    RemoveInputBindings();
+    Super::EndPlay(EndPlayReason);
+}
+void ADustfallExplorationDirector::RemoveInputBindings()
+{
+    if (UEnhancedInputComponent* Component = BoundInputComponent.Get())
+        for (uint32 Handle : InputBindingHandles) Component->RemoveBindingByHandle(Handle);
+    if (bAddedInputContext && BoundInputSubsystem.IsValid() && BoundMappingContext.IsValid())
+        BoundInputSubsystem->RemoveMappingContext(BoundMappingContext.Get());
+    InputBindingHandles.Reset();
+    BoundInputComponent.Reset();
+    BoundInputSubsystem.Reset();
+    BoundMappingContext.Reset();
+    BoundInputConfig.Reset();
+    BoundInputPawn.Reset();
+    PendingInputActions = 0;
+    bAddedInputContext = false;
+}
+void ADustfallExplorationDirector::UpdateInputBindings()
+{
+    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+    ULocalPlayer* LocalPlayer = PC && PC->IsLocalController() ? PC->GetLocalPlayer() : nullptr;
+    UEnhancedInputLocalPlayerSubsystem* Subsystem = LocalPlayer ? LocalPlayer->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>() : nullptr;
+    UEnhancedInputComponent* Component = PC ? Cast<UEnhancedInputComponent>(PC->InputComponent) : nullptr;
+    APawn* Pawn = PC ? PC->GetPawn() : nullptr;
+    if (!InputConfig || !InputConfig->MappingContext || !Subsystem || !Component || !Pawn)
+    {
+        RemoveInputBindings();
+        if (!InputConfig && !bLoggedInputPath)
+        {
+            UE_LOG(LogTemp, Log, TEXT("DUSTFALL exploration input: raw-key fallback (InputConfig is null)."));
+            bLoggedInputPath = true;
+        }
+        return; // Retry on Tick: possession/controller input setup can happen after BeginPlay.
+    }
+    if (BoundInputComponent.Get() == Component && BoundInputSubsystem.Get() == Subsystem &&
+        BoundInputConfig.Get() == InputConfig && BoundInputPawn.Get() == Pawn &&
+        BoundMappingContext.Get() == InputConfig->MappingContext.Get()) return;
+    RemoveInputBindings();
+    BoundInputComponent = Component;
+    BoundInputSubsystem = Subsystem;
+    BoundMappingContext = InputConfig->MappingContext;
+    BoundInputConfig = InputConfig;
+    BoundInputPawn = Pawn;
+    // Do not remove a context installed by another owner during our teardown.
+    bAddedInputContext = !Subsystem->HasMappingContext(InputConfig->MappingContext);
+    if (bAddedInputContext) Subsystem->AddMappingContext(InputConfig->MappingContext, InputConfig->MappingPriority);
+    const UInputAction* Actions[] = { InputConfig->Inventory, InputConfig->Journal, InputConfig->Scanner,
+        InputConfig->Beacon, InputConfig->Interact, InputConfig->QuickSave, InputConfig->QuickLoad, InputConfig->ToggleSymptoms };
+    for (uint8 Index = 0; Index < UE_ARRAY_COUNT(Actions); ++Index)
+    {
+        if (!Actions[Index]) continue;
+        const uint8 Mask = uint8(1u << Index);
+        InputBindingHandles.Add(Component->BindActionValueLambda(Actions[Index], ETriggerEvent::Started,
+            [this, Mask](const FInputActionValue&)
+            {
+                // Drain in the original Tick input block, after survival synchronization.
+                if (bInitialized) PendingInputActions |= Mask;
+            }).GetHandle());
+    }
+    if (!bLoggedInputPath)
+    {
+        UE_LOG(LogTemp, Log, TEXT("DUSTFALL exploration input: Enhanced Input (Started)."));
+        bLoggedInputPath = true;
+    }
 }
 int32 ADustfallExplorationDirector::InventoryCount() const
 {
@@ -267,17 +343,23 @@ void ADustfallExplorationDirector::Tick(float DeltaSeconds)
     if (bHome) SymptomRemaining=0;
     else if (SymptomIntensity>0 && PrivateStrain>=Tuning->SymptomThreshold && SymptomElapsed>Tuning->SymptomInterval)
     { PickSymptom(); SymptomElapsed=0; }
+    UpdateInputBindings();
     if (APlayerController* PC=UGameplayStatics::GetPlayerController(this,0))
     {
-        if (PC->WasInputKeyJustPressed(EKeys::Tab)) bInventoryOpen=!bInventoryOpen;
-        if (PC->WasInputKeyJustPressed(EKeys::J)) bJournalOpen=!bJournalOpen;
-        if (PC->WasInputKeyJustPressed(EKeys::Q)) PulseScanner();
-        if (PC->WasInputKeyJustPressed(EKeys::B)) PlaceBeacon();
-        if (PC->WasInputKeyJustPressed(EKeys::E)) Interact();
-        if (PC->WasInputKeyJustPressed(EKeys::F5)) { SaveExploration(); StatusMessage=bLastSaveSucceeded ? TEXT("Progress saved.") : TEXT("Save failed."); }
-        if (PC->WasInputKeyJustPressed(EKeys::F9)) { const bool bLoaded=LoadExploration(); StatusMessage=bLoaded ? TEXT("Progress loaded.") : TEXT("Load failed; current exploration session retained."); }
-        if (PC->WasInputKeyJustPressed(EKeys::F8)) { SetSymptomIntensity(SymptomIntensity>0 ? 0 : 1); SaveExploration(); StatusMessage=SymptomIntensity>0 ? TEXT("Subtle symptoms enabled.") : TEXT("Symptoms disabled."); }
+        const auto Pressed = [this, PC](uint8 Index, const FKey& Key)
+        {
+            return InputConfig ? (PendingInputActions & (1u << Index)) != 0 : PC->WasInputKeyJustPressed(Key);
+        };
+        if (Pressed(0, EKeys::Tab)) bInventoryOpen=!bInventoryOpen;
+        if (Pressed(1, EKeys::J)) bJournalOpen=!bJournalOpen;
+        if (Pressed(2, EKeys::Q)) PulseScanner();
+        if (Pressed(3, EKeys::B)) PlaceBeacon();
+        if (Pressed(4, EKeys::E)) Interact();
+        if (Pressed(5, EKeys::F5)) { SaveExploration(); StatusMessage=bLastSaveSucceeded ? TEXT("Progress saved.") : TEXT("Save failed."); }
+        if (Pressed(6, EKeys::F9)) { const bool bLoaded=LoadExploration(); StatusMessage=bLoaded ? TEXT("Progress loaded.") : TEXT("Load failed; current exploration session retained."); }
+        if (Pressed(7, EKeys::F8)) { SetSymptomIntensity(SymptomIntensity>0 ? 0 : 1); SaveExploration(); StatusMessage=SymptomIntensity>0 ? TEXT("Subtle symptoms enabled.") : TEXT("Symptoms disabled."); }
     }
+    PendingInputActions = 0;
     SaveElapsed+=DeltaSeconds;
     if (SaveElapsed>=Tuning->AutosaveInterval) { SaveExploration(); SaveElapsed=0; }
 }
