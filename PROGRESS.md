@@ -29,13 +29,13 @@ commit. Remote main was fetched and still matches base `60004c1`, allowing
 an ordinary fast-forward with the explicit main-to-main refspec. The combined
 local history and backup branch remain unchanged and are not push targets.
 
-Publication remains **blocked**, not complete. Automatic approval review
-rejected the explicit main-to-main push to
-`https://github.com/vdwMarius/dustfall.git`: it accepted main-only publication
-but required trusted user wording explicitly authorizing export of the project
-source/assets to that specific destination. No upload or alternate route was
-attempted. The three logical commits are ready locally on main; obtain that
-specific authorization before retrying. Remote main remains at the Phase2 base.
+Publication **succeeded** after the user explicitly authorized uploading the
+DUSTFALL source/assets to `https://github.com/vdwMarius/dustfall` on main.
+The explicit main-to-main push advanced remote main from `60004c1` to
+`f365d7b`, publishing Phase3 `bf0f954`, Phase4 `a046107` and docs `f365d7b`.
+This small follow-up docs commit records the successful publication. Earlier
+automatic approval blocks are resolved; no backup/feature branch or tags were
+pushed. Both unrelated imports remain untracked. Heavy testing stays deferred.
 
 ## 2026-11-13 — rounded pod, real relief and Phase 4 review build
 

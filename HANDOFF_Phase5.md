@@ -16,12 +16,13 @@ unrelated user imports: leave them untracked. Do not stage `Saved/`,
 The final pre-push audit is recorded in `PROGRESS.md`; verify local/remote
 main equality after delivery when checking publication state.
 
-**Publication pending:** automatic approval review rejected the main-to-main
-push, requiring explicit user authorization to upload the DUSTFALL source and
-assets to `https://github.com/vdwMarius/dustfall.git`. No upload occurred; remote
-main remains at Phase2 base `60004c1`. The three local commits are ready, and
-all size/exclusion audits passed. Do not bypass this rejection through another
-tool or remote; obtain the specific authorization before retrying main only.
+**Published to main:** after the user's explicit source/assets destination
+authorization, the main-to-main push succeeded, advancing remote main from
+`60004c1` to `f365d7b`. Phase3 is `bf0f954`, Phase4 is `a046107`, and the
+handoff/playtest docs are `f365d7b`. This publication-status correction is a
+small follow-up docs commit. All size/exclusion audits passed; the backup and
+combined feature branches were not pushed. Earlier automatic approval blocks
+are resolved by the user's explicit authorization.
 
 Runnable review build: `Builds/Phase4/Windows/Play_DUSTFALL.cmd`, 1920x1080
 High. Keep the complete Windows folder; Alt+F4 exits. Builds are local ignored
