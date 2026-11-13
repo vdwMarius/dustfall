@@ -20,12 +20,10 @@ def build():
     actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
     world = unreal.EditorLevelLibrary.get_editor_world()
     current = list(actors.get_all_level_actors())
-    bases = [a for a in current if a.get_actor_label() == 'Hab_Base_Temporary'
-             and 'DF_Phase1_Habitat_Blockout' in [str(t) for t in a.tags]]
-    if len(bases) != 1:
-        raise RuntimeError('Expected exactly one loaded habitat base')
-    base = bases[0].get_actor_location()
-    origin = (base.x, base.y)
+    layout = runpy.run_path(str(ROOT / 'Scripts/habitat_layout.py'))
+    origin3d = layout['habitat_origin'](current)
+    origin = origin3d[:2]
+    phase3_home = layout['phase3_habitat_present'](current)
     ignored = [a for a in current if not isinstance(a, unreal.LandscapeProxy)]
     if len(ignored) == len(current):
         raise RuntimeError('No loaded landscape')
@@ -81,15 +79,16 @@ def build():
         if any(str(t) in [TAG, RAMP_TAG] for t in actor.tags):
             actors.destroy_actor(actor)
     # The 50 cm foundation pad is taller than the capsule's 45 cm step.
-    ramp = actors.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(origin[0]+1230, origin[1], base.z-43))
-    ramp.set_actor_label('P2_Home_Approach_Ramp')
-    ramp.tags = [unreal.Name(RAMP_TAG)]
-    ramp.set_folder_path('DUSTFALL/Phase2_Routes')
-    ramp.static_mesh_component.set_static_mesh(mesh)
-    ramp.static_mesh_component.set_material(0, material)
-    ramp.static_mesh_component.set_collision_profile_name('BlockAll')
-    ramp.set_actor_scale3d(unreal.Vector(5.4, 5., .2))
-    ramp.set_actor_rotation(unreal.Rotator(pitch=-5.71, yaw=0, roll=0), False)
+    if not phase3_home:
+        ramp = actors.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(origin[0]+1230, origin[1], origin3d[2]-33))
+        ramp.set_actor_label('P2_Home_Approach_Ramp')
+        ramp.tags = [unreal.Name(RAMP_TAG)]
+        ramp.set_folder_path('DUSTFALL/Phase2_Routes')
+        ramp.static_mesh_component.set_static_mesh(mesh)
+        ramp.static_mesh_component.set_material(0, material)
+        ramp.static_mesh_component.set_collision_profile_name('BlockAll')
+        ramp.set_actor_scale3d(unreal.Vector(5.4, 5., .2))
+        ramp.set_actor_rotation(unreal.Rotator(pitch=-5.71, yaw=0, roll=0), False)
     for name, index, x, y, z in positions:
         actor = actors.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(x, y, z + 45.0))
         if not actor:
@@ -105,6 +104,7 @@ def build():
         actor.set_actor_scale3d(unreal.Vector(0.10, 0.10, 0.90))
     report['placed_stakes'] = len(positions)
     report['home_approach_ramp'] = True
+    report['home_approach_owner'] = 'phase3_preserved' if phase3_home else 'phase2'
     REPORT.write_text(json.dumps(report, indent=2), encoding='utf-8')
     unreal.log('Phase 2 routes built; report: ' + str(REPORT))
 

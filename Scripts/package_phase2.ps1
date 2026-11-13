@@ -21,4 +21,4 @@ $buildArguments = @(
 & $runUat @buildArguments
 if ($LASTEXITCODE -ne 0) { throw "BuildCookRun failed with exit code $LASTEXITCODE" }
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Play_Phase2.cmd') -Destination (Join-Path $ArchiveDirectory 'Windows\Play_DUSTFALL.cmd') -Force
-Write-Host "Phase 2 Windows build: $ArchiveDirectory\Windows\dustfall.exe"
+Write-Host "Windows build: $ArchiveDirectory\Windows\dustfall.exe"

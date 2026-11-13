@@ -12,12 +12,17 @@ import traceback
 import unreal
 
 ROOT=pathlib.Path(unreal.Paths.project_dir()).resolve()
-REPORT=ROOT/'Saved/Codex/route_pie_report.json'
+PHASE3=globals().get('PHASE3',False)
+REPORT=ROOT/('Saved/Codex/phase3_route_pie_report.json' if PHASE3 else 'Saved/Codex/route_pie_report.json')
 CASES=[('Day_Calm',0,.5),('Night_Haze',1,0.),('Day_Storm',2,.5)]
 site=json.loads((ROOT/'Saved/Codex/landmark_build_report.json').read_text())['Cruiser']
 lines=runpy.run_path(str(ROOT/'Scripts/phase2_layout.py'))['route_polylines']((site['relative_x_cm'],site['relative_y_cm']))
 home_wreck, wreck_ruin, home_cruiser = [lines[k] for k in ['Home_Wreck','Wreck_Ruin','Home_Cruiser']]
 POINTS=home_wreck[1:]+wreck_ruin[1:]+list(reversed(wreck_ruin[:-1]))+list(reversed(home_wreck[:-1]))+home_cruiser[1:]+list(reversed(home_cruiser[:-1]))
+if PHASE3:
+    # Exterior navigation ends at the airlock approach. Door traversal is tested
+    # separately, with survival enabled, by the habitat regression.
+    POINTS=[(1800.,0.) if x==550. and y==0. else (x,y) for x,y in POINTS]
 result={'status':'running','scope':'CharacterMovement route traversal at 4x game time; no performance claim', 'cases':[], 'errors':[]}
 state={'stage':'start','since':time.monotonic(),'case':0,'handle':None,'owns_pie':False,'last_write':0}
 
@@ -37,6 +42,9 @@ def finish(status):
             unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).editor_request_end_play()
         except Exception:
             result['errors'].append(traceback.format_exc())
+    if 'survival_editor' in state:
+        state['survival_editor'].set_editor_property('SaveSlotName',state['original_slot'])
+        unreal.GameplayStatics.delete_game_in_slot('Dustfall_Phase3_RouteQA',0)
     write()
     if state['handle'] is not None:
         unreal.unregister_slate_post_tick_callback(state['handle'])
@@ -60,6 +68,12 @@ def tick(delta):
             state['perf_settings']=perf
             state['old_throttle']=perf.get_editor_property('bThrottleCPUWhenNotForeground')
             perf.set_editor_property('bThrottleCPUWhenNotForeground',False)
+            if PHASE3:
+                cls=unreal.load_class(None,'/Game/Systems/BP_SurvivalDirector.BP_SurvivalDirector_C')
+                actor=unreal.GameplayStatics.get_all_actors_of_class(editor.get_editor_world(),cls)[0]
+                state.update(survival_editor=actor,original_slot=actor.get_editor_property('SaveSlotName'))
+                actor.set_editor_property('SaveSlotName','Dustfall_Phase3_RouteQA')
+                unreal.GameplayStatics.delete_game_in_slot('Dustfall_Phase3_RouteQA',0)
             unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).editor_request_begin_play()
             state['owns_pie']=True
             stage('wait')
@@ -76,10 +90,14 @@ def tick(delta):
             unreal.GameplayStatics.set_global_time_dilation(world,4.)
             state.update(world=world,pawn=pawn,director=director,movement=movement,
                          controller=unreal.GameplayStatics.get_player_controller(world,0))
+            if PHASE3:
+                cls=unreal.load_class(None,'/Game/Systems/BP_SurvivalDirector.BP_SurvivalDirector_C')
+                state['survival']=unreal.GameplayStatics.get_all_actors_of_class(world,cls)[0]
+                result['scope']+='; resources topped up to isolate navigation; airlock tested separately'
             stage('case')
         elif state['stage']=='case':
             name,weather,clock=CASES[state['case']]
-            state['pawn'].set_actor_location(unreal.Vector(550,0,150),False,False)
+            state['pawn'].set_actor_location(unreal.Vector(1800 if PHASE3 else 550,0,200 if PHASE3 else 150),False,False)
             state['director'].call_method('SetWeather',(weather,))
             state['director'].call_method('SetTimeOfDay',(clock,))
             state['point']=0
@@ -94,6 +112,9 @@ def tick(delta):
             if now-state['since']>8:
                 stage('walk')
         elif state['stage']=='walk':
+            if PHASE3:
+                for resource in ['Oxygen','Power','Integrity','Stamina']:
+                    state['survival'].set_editor_property(resource,100.)
             pawn=state['pawn'];p=pawn.get_actor_location()
             clock=CASES[state['case']][2]
             state['director'].call_method('SetWeather',(CASES[state['case']][1],))

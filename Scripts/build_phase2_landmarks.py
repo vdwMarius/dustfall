@@ -1,12 +1,13 @@
 """Build replaceable Phase 2 exterior landmark blockouts in the open level.
 
 Run in the editor after loading the foundation map and its landscape cells.
-No map save is performed. The habitat blockout defines the local origin.
+No map save is performed. The live Phase 1 or Phase 3 habitat defines the origin.
 All locations and dimensions are centimetres; these are non-interactive scenery.
 """
 import json
 import math
 import pathlib
+import runpy
 import unreal
 
 TAG = "DF_Phase2_Landmark"
@@ -17,12 +18,8 @@ def build():
     actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
     world = unreal.EditorLevelLibrary.get_editor_world()
     current = list(actors.get_all_level_actors())
-    bases = [a for a in current if a.get_actor_label() == "Hab_Base_Temporary"
-             and "DF_Phase1_Habitat_Blockout" in [str(t) for t in a.tags]]
-    if len(bases) != 1:
-        raise RuntimeError("Expected exactly one Phase 1 habitat base in the loaded level")
-    base = bases[0].get_actor_location()
-    origin = (base.x, base.y, base.z - 10.0)
+    layout = runpy.run_path(str(pathlib.Path(unreal.Paths.project_dir()) / 'Scripts/habitat_layout.py'))
+    origin = layout['habitat_origin'](current)
     landscapes = [a for a in current if isinstance(a, unreal.LandscapeProxy)]
     if not landscapes:
         raise RuntimeError("No loaded landscape; load the landmark landscape cells first")
