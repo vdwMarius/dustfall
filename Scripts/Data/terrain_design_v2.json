@@ -1,0 +1,65 @@
+{
+  "_comment": "Lead design intent for terrain v2 (metres, relative to home at 0,0; +X east, +Y as in phase2_layout). Worker converts to the exact feature schema, may shift features up to 60 m to avoid protected areas, and must report every change. Existing Phase 3 hills, ravine, crater and pit stay where they are.",
+  "units": "metres",
+  "protected": {
+    "discs_m": [[0, 0, 33], [150, 100, 25], [350, -250, 22], ["cruiser", 125]],
+    "routes": "Scripts/phase2_layout.py route_polylines (max grade stays under 8 percent, width kept clear)"
+  },
+  "canyons": [
+    {
+      "id": "the_scar",
+      "centreline_m": [[-900, -300], [-600, -380], [-350, -330], [-150, -420], [100, -600], [320, -760]],
+      "depth_m": 48,
+      "rim_width_m": [90, 140],
+      "floor_width_m": [28, 55],
+      "walls": "near-vertical upper 60 percent with 2-3 strata ledges, talus apron on the lower 40 percent; south wall steeper than north",
+      "descents": [
+        {"at_m": [-350, -330], "side": "north", "type": "switchback path, max grade 22 percent, 3.5 m wide"},
+        {"at_m": [-150, -420], "side": "north", "type": "broken ramp in a side gully, max grade 28 percent"},
+        {"at_m": [100, -600], "side": "south", "type": "rockfall scramble, readable from the floor"}
+      ],
+      "notes": "Cuts through the existing hill near (-340,-290) to expose a tall wall. No inescapable sections: every 250 m of floor has a descent within sight in calm weather."
+    }
+  ],
+  "escarpments": [
+    {
+      "id": "the_shelf",
+      "line_m": [[250, 950], [350, 620], [560, 380], [950, 300]],
+      "high_side": "north-east",
+      "drop_m": 60,
+      "profile": "sheer face for the top 35 m, stepped ledges below, boulder talus 40-70 m out from the foot",
+      "notch": {"at_m": [480, 470], "type": "narrow ramp path up through a cleft, max grade 25 percent, 4 m wide"},
+      "notes": "The plateau behind keeps gentle relief; the existing far dense field around (850,850) sits on top."
+    },
+    {
+      "id": "west_drop",
+      "line_m": [[-950, 250], [-820, 420], [-700, 700], [-760, 950]],
+      "high_side": "east",
+      "drop_m": 40,
+      "profile": "sheer with one mid ledge; ends the playable feel of the west edge with a massive drop instead of flat ground",
+      "notch": null
+    }
+  ],
+  "spire_fields": [
+    {"id": "needles_south", "centre_m": [430, -520], "radius_m": 140, "count": 26, "height_m": [14, 62], "style": "tall leaning shards (env_ref_03, env_ref_10)"},
+    {"id": "needles_north", "centre_m": [-520, 620], "radius_m": 120, "count": 18, "height_m": [18, 55], "style": "blunt weathered pillars (env_ref_01)"},
+    {"id": "sentinels_east", "centre_m": [700, -150], "radius_m": 90, "count": 7, "height_m": [35, 80], "style": "few very large monoliths visible as silhouettes from far away"}
+  ],
+  "paths": [
+    {"id": "home_wreck", "source": "route Home_Wreck", "width_m": 3.5},
+    {"id": "wreck_ruin", "source": "route Wreck_Ruin", "width_m": 3.5},
+    {"id": "home_cruiser", "source": "route Home_Cruiser", "width_m": 3.5},
+    {"id": "scar_trail", "polyline_m": [[-25, 25], [-120, -150], [-260, -260], [-350, -330]], "width_m": 3.0, "notes": "branches off the cruiser route, leads to the north switchback into the Scar; passes the existing pit at a safe distance"},
+    {"id": "shelf_trail", "polyline_m": [[130, 85], [260, 240], [400, 400], [480, 470]], "width_m": 3.0, "notes": "from the wreck up to the Shelf notch"}
+  ],
+  "path_look": "worn, slightly sunken (15-25 cm), compacted darker soil with scattered edge stones and occasional old marker stakes; reads as a track even at 15 m visibility (env_ref_08)",
+  "scatter_rules": {
+    "flats": "sparse pebbles and small rocks in wind-aligned clusters, large bare patches",
+    "slopes_20_to_45_deg": "medium boulders, denser near the top of slopes",
+    "cliff_feet": "talus: many boulders, size decreasing with distance from the wall",
+    "cliff_faces_over_50_deg": "large rock-face meshes embedded in the wall to hide stretched landscape, strata-aligned",
+    "ridges_and_rims": "jagged teeth and upright slabs along the edge so drops read as dangerous silhouettes",
+    "paths_and_protected": "no blocking rocks within the path width; small stones allowed at the edges",
+    "determinism": "seed 2042 family; identical on every run"
+  }
+}

@@ -1,7 +1,7 @@
 # DUSTFALL
 **Game Design Document**  
 *Working Title*  
-**Version:** 1.1 (2026-11-11 visual direction update)
+**Version:** 1.3 (2026-11-13 atmosphere, night and terrain update)
 **Engine:** Unreal Engine 5.8.4  
 **Genre:** Hyper-realistic Survival Exploration / Psychological Atmospheric  
 **Target:** Mid-range hardware, stable 60+ fps  
@@ -135,11 +135,12 @@ The habitat remains the primary place Strain decreases, but high-Strain events c
 ## 8. World & Exploration
 - Vast barren wasteland: dunes, craters, rocky ridges, dry canyons, hazardous stones, debris fields, twisted metal
 - Low visibility core mood: dense exponential fog, wind-blown dust particles, dim reddish-brown sky, faint distant sun
-- Dynamic weather: relative calm, haze and dust storms, all retaining persistent airborne dust. Daylight is dim, heavy and dust-filtered (user direction 2026-11-13, v1.2): it must look and feel like an alien planet ravaged by constant dust storms, but never be too dark to see and navigate. In calm and haze, recognizable silhouettes remain readable at 40+ metres. Settled dust storms cut visibility to around 20 metres and darken the light further; stronger gusts can briefly obscure more. Storms increase suit damage and Strain when those systems are implemented.
+- Dynamic weather: relative calm, haze and dust storms, all retaining persistent airborne dust. The planet must always feel ravaged by dust storms: visible wind-blown dust particles, streaks and drifting dust sheets at all times, intensifying in storms (user direction 2026-11-13, v1.3). Daylight is dim, heavy and dust-filtered but never too dark to see and navigate. In calm and haze, recognizable silhouettes remain readable at 40+ metres. Settled storms cut near, human-scale visibility to about 15 metres, while large distant shapes (hills, spires, wrecks, the habitat's lights) stay faintly visible as silhouettes; stronger gusts can briefly obscure more. Storms increase suit damage and Strain when those systems are implemented.
 - Use seeded Unreal PCG for suitable environment elements and scattering, with clustered natural distribution, varied sizes/heights, terrain-aware seating and clear traversal routes. Assemble open-backed rock scans into complete-looking boulders/cliffs using overlapping rotated copies; hide unfinished faces.
-- Day/night cycle; night is near pitch black — reliance on flashlight and placed beacons
+- Day/night cycle; night is dark but not pitch black (v1.3): the dark grey seen with closed eyes, with distant landforms faintly readable on the horizon under dim moonlight and a visible moon. The flashlight and placed beacons remain essential for near detail.
 - Points of interest: crashed starships, giant space cruiser (major multi-room exploration site), ruined hab modules with occupant stories, alien-style ruins (monoliths, arches, partially enterable structures)
 - Seeded / consistent layout so the world remains the same across sessions
+- Terrain v2 (user direction 2026-11-13, v1.3; references in `Docs/References/Environment/`): worn paths between landmarks, a real canyon, cliff faces with massive drops, tall rock spires, and PCG rock scatter that follows slope, cliff feet and rims. Design data: `Scripts/Data/terrain_design_v2.json`.
 - User terrain direction (2026-11-13): actual hills, mounds, jagged rocky zones,
   ridges, depressions/ravines and pitfalls must create hostile otherworldly
   geography. Dense small scatter on flat ground is insufficient. Preserve
@@ -221,4 +222,9 @@ Version 1.2 (2026-11-13) records the user's Phase 4 playtest direction: dimmer
 dust-filtered daylight and settled storms that limit visibility to about 20 m.
 Calm/haze keep the 40+ metre silhouette target.
 
-*End of GDD v1.2 — Living document.*
+Version 1.3 (2026-11-13) records the user's Phase 5 interim playtest: constant
+dust-storm feel with particles, 15 m storm visibility with distant silhouettes,
+grey moonlit nights, terrain v2, and a Blender-modelled modular habitat kit.
+Sprint endurance is slightly longer now and will grow with exploration progress.
+
+*End of GDD v1.3 — Living document.*
