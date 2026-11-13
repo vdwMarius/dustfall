@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "seed": 2042,
+  "cell_size_cm": 25000,
+  "max_rock_instances": 82434,
+  "timeout_seconds": 900,
+  "work_items_per_tick": 300,
+  "collision_hulls": 8,
+  "collision_vertices": 24,
+  "collision_precision": 200000,
+  "noise": {"wind_yaw_degrees": 60, "along_scale_cm": 18000, "across_scale_cm": 4500, "bare_threshold": 0.57},
+  "flats": {"step_cm": 420, "slope_degrees": [0, 20], "height_cm": [-20000, 30000], "keep_probability": 0.65, "size_cm": [25, 115], "cap": 44000, "cull_cm": 14000},
+  "slopes": {"step_cm": 850, "slope_degrees": [20, 45], "height_cm": [-20000, 30000], "keep_probability": 0.55, "crest_probability": [0.3, 1.0], "size_cm": [170, 450], "cap": 14000, "cull_cm": 65000},
+  "talus": {"step_cm": 280, "slope_degrees": [10, 35], "height_cm": [-20000, 30000], "keep_probability": 0.9, "size_cm": [100, 620], "wall_search_cm": 6500, "cap": 14000, "cull_cm": 65000},
+  "cliffs": {"step_cm": 220, "slope_degrees": [50, 90], "height_cm": [-20000, 30000], "keep_probability": 1, "size_cm": [1200, 1600], "depth_cm": [650, 900], "height_size_cm": [1400, 1800], "embed_fraction": 0.62, "yaw_jitter_degrees": 4, "roll_degrees": 2, "cap": 3500, "cull_cm": 0},
+  "rims": {"step_cm": 1000, "rim_offset_cm": 350, "size_cm": [220, 500], "height_ratio": [1.5, 2.8], "cap": 1500, "cull_cm": 0},
+  "edges": {"spacing_cm": 700, "offset_cm": [100, 220], "size_cm": [20, 55], "cap": 1800, "cull_cm": 14000},
+  "stakes": {"spacing_cm": 6500, "offset_cm": 140, "size_cm": [10, 10, 90], "lean_degrees": 7, "cull_cm": 22000},
+  "spires": {"tiers": 4, "overlap_fraction": 0.22, "embed_cm": 130, "lean_degrees": [5, 13], "tier_yaw_degrees": 12, "taper_fraction": 0.5, "slenderness": [0.10, 0.16], "pillar_slenderness": [0.19, 0.26], "sentinel_slenderness": [0.18, 0.24], "placement_attempts": 3000, "separation_factor": 1.15, "cull_cm": 0},
+  "paths": {"darken": 0.55, "roughness": 0.88, "normal_flatten": 0.65},
+  "debris_clearance_cm": 700
+}
