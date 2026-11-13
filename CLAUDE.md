@@ -84,7 +84,7 @@ Codex workers own: implementation and debugging within a spec.
   3. Habitat & Progression (interior, airlock, respawn, save)
   4. UI / Polish + Asset Integration
 - How to delegate (from the task's worktree, using the Bash tool):
-  `codex exec -m <model> -c model_reasoning_effort=<effort> --full-auto "<task spec>" < /dev/null`
+  `codex exec -m <model> -c model_reasoning_effort=<effort> -s workspace-write "<task spec>" < /dev/null`
   The `< /dev/null` stops Codex waiting on stdin. For long specs, write the spec
   to a file under `Saved/Codex/specs/` and tell Codex to read it.
   Run independent tasks as parallel background jobs, each in its own git

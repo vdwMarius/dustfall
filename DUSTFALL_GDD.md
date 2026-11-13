@@ -135,7 +135,7 @@ The habitat remains the primary place Strain decreases, but high-Strain events c
 ## 8. World & Exploration
 - Vast barren wasteland: dunes, craters, rocky ridges, dry canyons, hazardous stones, debris fields, twisted metal
 - Low visibility core mood: dense exponential fog, wind-blown dust particles, dim reddish-brown sky, faint distant sun
-- Dynamic weather: relative calm, haze and dust storms, all retaining persistent airborne dust. Daylight must read clearly through the dust rather than feel excessively dark. Recognizable silhouettes should remain readable at 40+ metres, including settled storms; stronger gusts can briefly obscure more. Storms increase suit damage and Strain when those systems are implemented.
+- Dynamic weather: relative calm, haze and dust storms, all retaining persistent airborne dust. Daylight is dim, heavy and dust-filtered (user direction 2026-11-13, v1.2): it must look and feel like an alien planet ravaged by constant dust storms, but never be too dark to see and navigate. In calm and haze, recognizable silhouettes remain readable at 40+ metres. Settled dust storms cut visibility to around 20 metres and darken the light further; stronger gusts can briefly obscure more. Storms increase suit damage and Strain when those systems are implemented.
 - Use seeded Unreal PCG for suitable environment elements and scattering, with clustered natural distribution, varied sizes/heights, terrain-aware seating and clear traversal routes. Assemble open-backed rock scans into complete-looking boulders/cliffs using overlapping rotated copies; hide unfinished faces.
 - Day/night cycle; night is near pitch black — reliance on flashlight and placed beacons
 - Points of interest: crashed starships, giant space cruiser (major multi-room exploration site), ruined hab modules with occupant stories, alien-style ruins (monoliths, arches, partially enterable structures)
@@ -217,4 +217,8 @@ earlier metre-scale storm visibility target with readable 40+ metre silhouettes.
 See `Docs/Phase3_Plan.md` and `Docs/References/Phase3/` for implementation order
 and the supplied habitat/interior, explorable wreck and suit visual references.
 
-*End of GDD v1.1 — Living document.*
+Version 1.2 (2026-11-13) records the user's Phase 4 playtest direction: dimmer
+dust-filtered daylight and settled storms that limit visibility to about 20 m.
+Calm/haze keep the 40+ metre silhouette target.
+
+*End of GDD v1.2 — Living document.*
