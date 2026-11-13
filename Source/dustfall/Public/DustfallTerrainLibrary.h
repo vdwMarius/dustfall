@@ -9,6 +9,11 @@ class DUSTFALL_API UDustfallTerrainLibrary : public UBlueprintFunctionLibrary
 {
     GENERATED_BODY()
 public:
+    /** Deterministic v2 JSON authoring. Reports/masks are written before any landscape mutation. */
+    UFUNCTION(BlueprintCallable, Category="Dustfall|Editor")
+    static FString AuthorTerrainFromFeatures(AActor* LandscapeActor, const FString& BaselineFile,
+        const FString& FeaturesJsonFile, const FString& OutReportJsonFile);
+
     /** Reads/writes an exact baseline heightfield before applying deterministic relief.
      * Protection discs store radius in Z. Route endpoints are consecutive pairs.
      * Returns measured extent/height information or an error; refuses PIE. */

@@ -1,0 +1,1166 @@
+{
+  "schema_version": 2,
+  "units": "cm",
+  "seed": 2042,
+  "documentation": {
+    "parameters": {
+      "gaussian_hill/spire_base": "cx,cy,rx,ry,amplitude,yaw_radians",
+      "ridged_noise_7": "amplitude,x_frequency,y_warp_frequency,power,bias,modulation,y_modulation_frequency",
+      "ridged_noise_8": "amplitude,cx,cy,rx,ry,yaw,x_frequency,y_frequency",
+      "ravine": "y,meander,x_origin,frequency,x_centre,x_radius,along_power,north_width,south_width,depth,cross_power",
+      "crater": "cx,cy,rim_height,rim_radius,rim_sigma,depth,floor_radius",
+      "pit": "cx,cy,depth,inner_radius,outer_radius,ramp_height,ramp_cx,ramp_cy,ramp_rx,ramp_ry,ramp_yaw"
+    },
+    "order": "Array order within stages: sum all legacy and new relief, multiply combined delta by the original protection guard (linearity reproduces legacy exactly); carve paths in array order; restore hard protection cores; quantise; measure before committing. Always exact baseline. Existing route paths remain at baseline inside their guard. Fillets round new corners by <=12m, never alter original route geometry.",
+    "widths": "Full widths. Canyon width pairs interpolate by arc length. Wall knots floor-to-rim horizontal fraction versus rise. high_side=-1 means right of directed line. Polyline corners are rounded by preprocessing in builder. Shelf high_side=+1 (left/NE); west_drop=-1 (right/east). High plateau extends to map edge, with inherited gentle relief. vertical_offset_cm chooses raised high-side Shelf versus lowered west foot, avoiding raising the entire existing world east of west_drop.",
+    "masks": "2048 square uint8 raw. Row0=min world Y, col0=min world X, extrema inclusive. paths:255 corridor,1..254 shoulders. cliffs:0 other,85 talus,170 ledge/steep,255 >50 degrees. Classification from final quantised output.",
+    "design_changes": [
+      "Main canyon/escarpment/spire controls unchanged; corner fillets move only intervening geometry by at most 12m.",
+      "scar_trail endpoint moved from (-350,-330)m to (-350,-270)m, 60m north, to meet the switchback rim instead of dropping straight to the canyon floor at an impossible trail grade.",
+      "shelf_trail endpoint moved from (480,470)m to (440,435)m, 53.15m southwest, to meet the notch foot instead of ending halfway up its wall.",
+      "Explicit descent traverses extend along walls around the requested anchors; two additional Scar end escapes serve isolated ends.",
+      "Descent hairpins have explicit 15m-radius arc controls so the walkable corridor does not fold across a sharp polyline reversal."
+    ],
+    "fall_cache_risks": [
+      "West_drop has no ascent: a surviving fall may leave cache inaccessible from above.",
+      "Scar/Shelf ledges away from descents can strand surviving-fall caches; fatal falls retain existing last-safe-rim relocation.",
+      "Canyon end caps near world boundary require traversal review."
+    ],
+    "run_order": [
+      "Lead closes editor, builds dustfallEditor (Json is an editor-only dependency), opens foundation with sole writer lock.",
+      "Run Scripts/build_phase5_terrain.py as __main__; wait for Docs/Phase5_TerrainResults.json status complete, not queue completion.",
+      "Review native measurements and collision probes; run Dustfall.Core.Terrain tests and brief existing smoke.",
+      "Run Scripts/capture_phase5_terrain.py as __main__; wait for Saved/Codex/Phase5Terrain/report.json and review all images.",
+      "PCG rebuild is a separate task using TerrainMasks and resolved/source feature JSON."
+    ],
+    "expected_measurements": "Nominal Scar cut 4800cm; Shelf step 6000cm; west drop 4000cm, modified by existing relief/protection/end blends. Original route grades <8%; paths <=7.9%; descents <=22/28/32/25/28/28%. Output reports actual quantised grades, cross-section drops and wall angles, not nominal acceptance."
+  },
+  "protection": {
+    "discs_cm": [
+      [
+        0,
+        0,
+        3300
+      ],
+      [
+        15000,
+        10000,
+        2500
+      ],
+      [
+        35000,
+        -25000,
+        2200
+      ]
+    ],
+    "cruiser_radius_cm": 12500,
+    "disc_blend_cm": 2800,
+    "route_inner_cm": 850,
+    "route_outer_cm": 3200
+  },
+  "sampling": {
+    "path_step_cm": 100,
+    "probe_step_cm": 1000,
+    "mask_size": 2048,
+    "cliff_degrees": 50,
+    "talus_min_degrees": 10,
+    "talus_max_degrees": 35,
+    "profile_tolerance_cm": 15,
+    "grade_reserve": 0.9
+  },
+  "features": [
+    {
+      "id": "legacy_hill_00",
+      "type": "gaussian_hill",
+      "stage": "legacy",
+      "parameters": [
+        8000.0,
+        -11000.0,
+        11000.0,
+        7000.0,
+        1750.0,
+        0.35
+      ]
+    },
+    {
+      "id": "legacy_hill_01",
+      "type": "gaussian_hill",
+      "stage": "legacy",
+      "parameters": [
+        -18000.0,
+        -13000.0,
+        14000.0,
+        6500.0,
+        2500.0,
+        -0.6
+      ]
+    },
+    {
+      "id": "legacy_hill_02",
+      "type": "gaussian_hill",
+      "stage": "legacy",
+      "parameters": [
+        23000.0,
+        23000.0,
+        16000.0,
+        9000.0,
+        3100.0,
+        0.4
+      ]
+    },
+    {
+      "id": "legacy_hill_03",
+      "type": "gaussian_hill",
+      "stage": "legacy",
+      "parameters": [
+        -12000.0,
+        17000.0,
+        7500.0,
+        12000.0,
+        1900.0,
+        -0.8
+      ]
+    },
+    {
+      "id": "legacy_hill_04",
+      "type": "gaussian_hill",
+      "stage": "legacy",
+      "parameters": [
+        48000.0,
+        -5000.0,
+        17000.0,
+        10000.0,
+        3000.0,
+        0.7
+      ]
+    },
+    {
+      "id": "legacy_hill_05",
+      "type": "gaussian_hill",
+      "stage": "legacy",
+      "parameters": [
+        -34000.0,
+        -29000.0,
+        18000.0,
+        8000.0,
+        3700.0,
+        -0.3
+      ]
+    },
+    {
+      "id": "legacy_hill_06",
+      "type": "gaussian_hill",
+      "stage": "legacy",
+      "parameters": [
+        3000.0,
+        43000.0,
+        22000.0,
+        9500.0,
+        4300.0,
+        0.2
+      ]
+    },
+    {
+      "id": "legacy_hill_07",
+      "type": "gaussian_hill",
+      "stage": "legacy",
+      "parameters": [
+        65000.0,
+        45000.0,
+        23000.0,
+        14000.0,
+        5200.0,
+        -0.8
+      ]
+    },
+    {
+      "id": "legacy_hill_08",
+      "type": "gaussian_hill",
+      "stage": "legacy",
+      "parameters": [
+        -68000.0,
+        -43000.0,
+        20000.0,
+        13000.0,
+        4800.0,
+        0.4
+      ]
+    },
+    {
+      "id": "legacy_hill_09",
+      "type": "gaussian_hill",
+      "stage": "legacy",
+      "parameters": [
+        57000.0,
+        -59000.0,
+        22000.0,
+        17000.0,
+        4200.0,
+        -0.5
+      ]
+    },
+    {
+      "id": "legacy_hill_10",
+      "type": "gaussian_hill",
+      "stage": "legacy",
+      "parameters": [
+        -30000.0,
+        61000.0,
+        27000.0,
+        12000.0,
+        6100.0,
+        0.5
+      ]
+    },
+    {
+      "id": "legacy_hill_11",
+      "type": "gaussian_hill",
+      "stage": "legacy",
+      "parameters": [
+        -77000.0,
+        65000.0,
+        18000.0,
+        19000.0,
+        5400.0,
+        0.6
+      ]
+    },
+    {
+      "id": "legacy_wind",
+      "type": "ridged_noise",
+      "stage": "legacy",
+      "parameters": [
+        220,
+        0.00029,
+        0.00015,
+        3,
+        0.35,
+        0.65,
+        0.00011
+      ]
+    },
+    {
+      "id": "legacy_teeth",
+      "type": "ridged_noise",
+      "stage": "legacy",
+      "parameters": [
+        460,
+        16000,
+        -12000,
+        16000,
+        7000,
+        0.2,
+        0.0011,
+        0.00065
+      ]
+    },
+    {
+      "id": "legacy_ravine",
+      "type": "ravine",
+      "stage": "legacy",
+      "parameters": [
+        -18500,
+        1400,
+        7000,
+        0.00018,
+        18000,
+        15000,
+        4,
+        1050,
+        2900,
+        1250,
+        1.7
+      ]
+    },
+    {
+      "id": "legacy_crater",
+      "type": "crater",
+      "stage": "legacy",
+      "parameters": [
+        28000,
+        2000,
+        350,
+        4200,
+        1000,
+        800,
+        3200
+      ]
+    },
+    {
+      "id": "legacy_pit",
+      "type": "pit",
+      "stage": "legacy",
+      "parameters": [
+        -8500,
+        -6500,
+        980,
+        1000,
+        3000,
+        550,
+        -6300,
+        -6500,
+        2500,
+        850,
+        0
+      ]
+    },
+    {
+      "id": "the_scar",
+      "type": "canyon",
+      "stage": "new",
+      "line_cm": [
+        [
+          -90000,
+          -30000
+        ],
+        [
+          -60000,
+          -38000
+        ],
+        [
+          -35000,
+          -33000
+        ],
+        [
+          -15000,
+          -42000
+        ],
+        [
+          10000,
+          -60000
+        ],
+        [
+          32000,
+          -76000
+        ]
+      ],
+      "depth_cm": 4800,
+      "rim_width_cm": [
+        9000,
+        14000
+      ],
+      "floor_width_cm": [
+        2800,
+        5500
+      ],
+      "north_wall": [
+        [
+          0,
+          0
+        ],
+        [
+          0.6,
+          0.34
+        ],
+        [
+          0.66,
+          0.4
+        ],
+        [
+          0.76,
+          0.4
+        ],
+        [
+          0.8,
+          0.54
+        ],
+        [
+          0.88,
+          0.54
+        ],
+        [
+          0.96,
+          0.95
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "south_wall": [
+        [
+          0,
+          0
+        ],
+        [
+          0.7,
+          0.34
+        ],
+        [
+          0.75,
+          0.4
+        ],
+        [
+          0.82,
+          0.4
+        ],
+        [
+          0.85,
+          0.56
+        ],
+        [
+          0.91,
+          0.56
+        ],
+        [
+          0.98,
+          0.98
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "end_blend_cm": 7000
+    },
+    {
+      "id": "the_shelf",
+      "type": "escarpment",
+      "stage": "new",
+      "line_cm": [
+        [
+          25000,
+          95000
+        ],
+        [
+          35000,
+          62000
+        ],
+        [
+          56000,
+          38000
+        ],
+        [
+          95000,
+          30000
+        ]
+      ],
+      "high_side": 1,
+      "drop_cm": 6000,
+      "face_width_cm": 1800,
+      "talus_width_cm": 5500,
+      "plateau_blend_cm": 18000,
+      "end_blend_cm": 6000,
+      "wall": [
+        [
+          0,
+          0
+        ],
+        [
+          0.64,
+          0.25
+        ],
+        [
+          0.72,
+          0.4
+        ],
+        [
+          0.83,
+          0.4
+        ],
+        [
+          0.88,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "vertical_offset_cm": 0
+    },
+    {
+      "id": "west_drop",
+      "type": "escarpment",
+      "stage": "new",
+      "line_cm": [
+        [
+          -95000,
+          25000
+        ],
+        [
+          -82000,
+          42000
+        ],
+        [
+          -70000,
+          70000
+        ],
+        [
+          -76000,
+          95000
+        ]
+      ],
+      "high_side": -1,
+      "drop_cm": 4000,
+      "face_width_cm": 1200,
+      "talus_width_cm": 5500,
+      "plateau_blend_cm": 18000,
+      "end_blend_cm": 6000,
+      "wall": [
+        [
+          0,
+          0
+        ],
+        [
+          0.64,
+          0.25
+        ],
+        [
+          0.72,
+          0.4
+        ],
+        [
+          0.83,
+          0.4
+        ],
+        [
+          0.88,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "vertical_offset_cm": -4000
+    },
+    {
+      "id": "needles_south",
+      "type": "spire_base",
+      "stage": "new",
+      "parameters": [
+        43000,
+        -52000,
+        14000,
+        14000,
+        180,
+        0
+      ],
+      "dressing": {
+        "count": 26,
+        "height_cm": [
+          1400,
+          6200
+        ],
+        "style": "tall leaning shards (env_ref_03, env_ref_10)"
+      }
+    },
+    {
+      "id": "needles_north",
+      "type": "spire_base",
+      "stage": "new",
+      "parameters": [
+        -52000,
+        62000,
+        12000,
+        12000,
+        180,
+        0
+      ],
+      "dressing": {
+        "count": 18,
+        "height_cm": [
+          1800,
+          5500
+        ],
+        "style": "blunt weathered pillars (env_ref_01)"
+      }
+    },
+    {
+      "id": "sentinels_east",
+      "type": "spire_base",
+      "stage": "new",
+      "parameters": [
+        70000,
+        -15000,
+        9000,
+        9000,
+        180,
+        0
+      ],
+      "dressing": {
+        "count": 7,
+        "height_cm": [
+          3500,
+          8000
+        ],
+        "style": "few very large monoliths visible as silhouettes from far away"
+      }
+    },
+    {
+      "id": "home_wreck",
+      "type": "path",
+      "stage": "path",
+      "width_cm": 350.0,
+      "shoulder_cm": 400,
+      "max_grade": 0.079,
+      "max_cross_slope": 0.02,
+      "sink_cm": 20,
+      "endpoint_blend_cm": 1500,
+      "route_reference": "Home_Wreck"
+    },
+    {
+      "id": "wreck_ruin",
+      "type": "path",
+      "stage": "path",
+      "width_cm": 350.0,
+      "shoulder_cm": 400,
+      "max_grade": 0.079,
+      "max_cross_slope": 0.02,
+      "sink_cm": 20,
+      "endpoint_blend_cm": 1500,
+      "route_reference": "Wreck_Ruin"
+    },
+    {
+      "id": "home_cruiser",
+      "type": "path",
+      "stage": "path",
+      "width_cm": 350.0,
+      "shoulder_cm": 400,
+      "max_grade": 0.079,
+      "max_cross_slope": 0.02,
+      "sink_cm": 20,
+      "endpoint_blend_cm": 1500,
+      "route_reference": "Home_Cruiser"
+    },
+    {
+      "id": "scar_trail",
+      "type": "path",
+      "stage": "path",
+      "width_cm": 300.0,
+      "shoulder_cm": 400,
+      "max_grade": 0.079,
+      "max_cross_slope": 0.02,
+      "sink_cm": 20,
+      "endpoint_blend_cm": 1500,
+      "line_cm": [
+        [
+          -2500,
+          2500
+        ],
+        [
+          -12000,
+          -15000
+        ],
+        [
+          -26000,
+          -26000
+        ],
+        [
+          -35000,
+          -27000
+        ]
+      ]
+    },
+    {
+      "id": "shelf_trail",
+      "type": "path",
+      "stage": "path",
+      "width_cm": 300.0,
+      "shoulder_cm": 400,
+      "max_grade": 0.079,
+      "max_cross_slope": 0.02,
+      "sink_cm": 20,
+      "endpoint_blend_cm": 1500,
+      "line_cm": [
+        [
+          13000,
+          8500
+        ],
+        [
+          26000,
+          24000
+        ],
+        [
+          40000,
+          40000
+        ],
+        [
+          44000,
+          43500
+        ]
+      ]
+    },
+    {
+      "id": "scar_switchback",
+      "type": "descent",
+      "stage": "path",
+      "parent": "the_scar",
+      "line_cm": [
+        [
+          -35000,
+          -27000
+        ],
+        [
+          -42000.0,
+          -27000.0
+        ],
+        [
+          -42388.22856765379,
+          -27051.1112605664
+        ],
+        [
+          -42750.0,
+          -27200.961894323344
+        ],
+        [
+          -43060.66017177982,
+          -27439.33982822018
+        ],
+        [
+          -43299.03810567666,
+          -27750.0
+        ],
+        [
+          -43448.888739433605,
+          -28111.771432346217
+        ],
+        [
+          -43500.0,
+          -28500.0
+        ],
+        [
+          -43448.888739433605,
+          -28888.228567653783
+        ],
+        [
+          -43299.03810567666,
+          -29250.0
+        ],
+        [
+          -43060.660171779826,
+          -29560.66017177982
+        ],
+        [
+          -42750.0,
+          -29799.038105676656
+        ],
+        [
+          -42388.22856765379,
+          -29948.8887394336
+        ],
+        [
+          -42000.0,
+          -30000.0
+        ],
+        [
+          -28000,
+          -30000
+        ],
+        [
+          -27611.771432346217,
+          -30051.1112605664
+        ],
+        [
+          -27250.0,
+          -30200.961894323344
+        ],
+        [
+          -26939.33982822018,
+          -30439.33982822018
+        ],
+        [
+          -26700.961894323344,
+          -30750.0
+        ],
+        [
+          -26551.1112605664,
+          -31111.771432346217
+        ],
+        [
+          -26500.0,
+          -31500.0
+        ],
+        [
+          -26551.1112605664,
+          -31888.228567653783
+        ],
+        [
+          -26700.961894323344,
+          -32250.0
+        ],
+        [
+          -26939.33982822018,
+          -32560.66017177982
+        ],
+        [
+          -27250.0,
+          -32799.03810567666
+        ],
+        [
+          -27611.771432346217,
+          -32948.888739433605
+        ],
+        [
+          -28000.0,
+          -33000.0
+        ],
+        [
+          -35000,
+          -33000
+        ]
+      ],
+      "width_cm": 350,
+      "shoulder_cm": 450,
+      "max_grade": 0.22,
+      "max_cross_slope": 0.02,
+      "sink_cm": 20,
+      "endpoint_blend_cm": 1500
+    },
+    {
+      "id": "scar_gully",
+      "type": "descent",
+      "stage": "path",
+      "parent": "the_scar",
+      "line_cm": [
+        [
+          -15000,
+          -32500
+        ],
+        [
+          -24000.0,
+          -33500.0
+        ],
+        [
+          -24388.22856765378,
+          -33551.111260566395
+        ],
+        [
+          -24750.0,
+          -33700.96189432334
+        ],
+        [
+          -25060.660171779822,
+          -33939.33982822018
+        ],
+        [
+          -25299.038105676656,
+          -34250.0
+        ],
+        [
+          -25448.8887394336,
+          -34611.77143234621
+        ],
+        [
+          -25500.0,
+          -35000.0
+        ],
+        [
+          -25448.8887394336,
+          -35388.22856765379
+        ],
+        [
+          -25299.038105676656,
+          -35750.0
+        ],
+        [
+          -25060.660171779822,
+          -36060.66017177982
+        ],
+        [
+          -24750.0,
+          -36299.03810567666
+        ],
+        [
+          -24388.22856765378,
+          -36448.888739433605
+        ],
+        [
+          -24000.0,
+          -36500.0
+        ],
+        [
+          -15000,
+          -39000
+        ],
+        [
+          -15000,
+          -42000
+        ]
+      ],
+      "width_cm": 350,
+      "shoulder_cm": 450,
+      "max_grade": 0.28,
+      "max_cross_slope": 0.02,
+      "sink_cm": 20,
+      "endpoint_blend_cm": 1500
+    },
+    {
+      "id": "scar_scramble",
+      "type": "descent",
+      "stage": "path",
+      "parent": "the_scar",
+      "line_cm": [
+        [
+          10000,
+          -69000
+        ],
+        [
+          21000,
+          -70500
+        ],
+        [
+          22500,
+          -69000
+        ],
+        [
+          21000,
+          -67500
+        ],
+        [
+          10000,
+          -66000
+        ],
+        [
+          5000,
+          -63000
+        ],
+        [
+          4500,
+          -61500
+        ],
+        [
+          5500,
+          -60000
+        ],
+        [
+          7500,
+          -60000
+        ],
+        [
+          10000,
+          -60000
+        ]
+      ],
+      "width_cm": 400,
+      "shoulder_cm": 450,
+      "max_grade": 0.32,
+      "max_cross_slope": 0.02,
+      "sink_cm": 20,
+      "endpoint_blend_cm": 1500
+    },
+    {
+      "id": "shelf_notch",
+      "type": "descent",
+      "stage": "path",
+      "parent": "the_shelf",
+      "line_cm": [
+        [
+          53000,
+          50500
+        ],
+        [
+          61000.0,
+          46500.0
+        ],
+        [
+          61388.22856765378,
+          46448.888739433605
+        ],
+        [
+          61750.0,
+          46299.03810567666
+        ],
+        [
+          62060.66017177982,
+          46060.66017177982
+        ],
+        [
+          62299.038105676664,
+          45750.0
+        ],
+        [
+          62448.888739433605,
+          45388.22856765379
+        ],
+        [
+          62500.0,
+          45000.0
+        ],
+        [
+          62448.888739433605,
+          44611.77143234621
+        ],
+        [
+          62299.038105676664,
+          44250.0
+        ],
+        [
+          62060.66017177982,
+          43939.33982822018
+        ],
+        [
+          61750.0,
+          43700.96189432334
+        ],
+        [
+          61388.22856765378,
+          43551.111260566395
+        ],
+        [
+          61000.0,
+          43500.0
+        ],
+        [
+          44000,
+          43500
+        ]
+      ],
+      "width_cm": 400,
+      "shoulder_cm": 450,
+      "max_grade": 0.25,
+      "max_cross_slope": 0.02,
+      "sink_cm": 20,
+      "endpoint_blend_cm": 1500
+    },
+    {
+      "id": "scar_west_escape",
+      "type": "descent",
+      "stage": "path",
+      "parent": "the_scar",
+      "line_cm": [
+        [
+          -85000,
+          -18000
+        ],
+        [
+          -92000.0,
+          -21000.0
+        ],
+        [
+          -92388.22856765377,
+          -21051.1112605664
+        ],
+        [
+          -92750.0,
+          -21200.961894323344
+        ],
+        [
+          -93060.66017177982,
+          -21439.339828220178
+        ],
+        [
+          -93299.03810567666,
+          -21750.0
+        ],
+        [
+          -93448.8887394336,
+          -22111.77143234622
+        ],
+        [
+          -93500.0,
+          -22500.0
+        ],
+        [
+          -93448.8887394336,
+          -22888.22856765378
+        ],
+        [
+          -93299.03810567665,
+          -23250.0
+        ],
+        [
+          -93060.66017177982,
+          -23560.660171779822
+        ],
+        [
+          -92750.0,
+          -23799.038105676656
+        ],
+        [
+          -92388.22856765377,
+          -23948.8887394336
+        ],
+        [
+          -92000.0,
+          -24000.0
+        ],
+        [
+          -85000,
+          -31300
+        ]
+      ],
+      "width_cm": 350,
+      "shoulder_cm": 450,
+      "max_grade": 0.28,
+      "max_cross_slope": 0.02,
+      "sink_cm": 20,
+      "endpoint_blend_cm": 1500
+    },
+    {
+      "id": "scar_east_escape",
+      "type": "descent",
+      "stage": "path",
+      "parent": "the_scar",
+      "line_cm": [
+        [
+          29000,
+          -65000
+        ],
+        [
+          39000.0,
+          -66500.0
+        ],
+        [
+          39388.22856765379,
+          -66551.1112605664
+        ],
+        [
+          39750.0,
+          -66700.96189432335
+        ],
+        [
+          40060.66017177982,
+          -66939.33982822018
+        ],
+        [
+          40299.03810567666,
+          -67250.0
+        ],
+        [
+          40448.888739433605,
+          -67611.77143234623
+        ],
+        [
+          40500.0,
+          -68000.0
+        ],
+        [
+          40448.888739433605,
+          -68388.22856765377
+        ],
+        [
+          40299.03810567666,
+          -68750.0
+        ],
+        [
+          40060.66017177982,
+          -69060.66017177982
+        ],
+        [
+          39750.0,
+          -69299.03810567665
+        ],
+        [
+          39388.22856765379,
+          -69448.8887394336
+        ],
+        [
+          39000.0,
+          -69500.0
+        ],
+        [
+          29000,
+          -73800
+        ]
+      ],
+      "width_cm": 350,
+      "shoulder_cm": 450,
+      "max_grade": 0.28,
+      "max_cross_slope": 0.02,
+      "sink_cm": 20,
+      "endpoint_blend_cm": 1500
+    }
+  ]
+}
