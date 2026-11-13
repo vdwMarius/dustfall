@@ -8,6 +8,11 @@
 #include "Components/PostProcessComponent.h"
 #include "Components/SkyLightComponent.h"
 #include "EngineUtils.h"
+#include "Engine/World.h"
+#if WITH_EDITOR
+#include "ActorFolder.h"
+#include "UObject/Package.h"
+#endif
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Math/RotationMatrix.h"
@@ -66,6 +71,35 @@ ADustfallAtmosphereFX::ADustfallAtmosphereFX()
     }
 }
 
+bool ADustfallAtmosphereFX::SetCaptureSaveSlot(AActor* Director, const FString& Slot)
+{
+#if WITH_EDITOR
+    if (!IsValid(Director) || !Director->GetWorld() || Director->GetWorld()->WorldType != EWorldType::Editor
+        || Director->GetClass()->GetFName() != FName(TEXT("BP_SurvivalDirector_C"))) return false;
+    if (const FStrProperty* Property = FindFProperty<FStrProperty>(Director->GetClass(), TEXT("SaveSlotName")))
+    {
+        Property->SetPropertyValue_InContainer(Director, Slot);
+        return true;
+    }
+#endif
+    return false;
+}
+
+TArray<UPackage*> ADustfallAtmosphereFX::GetAuthoringPackages(bool bIncludeFolders) const
+{
+    TArray<UPackage*> Packages;
+#if WITH_EDITOR
+    Packages.AddUnique(GetPackage());
+    TInlineComponentArray<UActorComponent*> Components;
+    GetComponents(Components);
+    for (const UActorComponent* Component : Components) Packages.AddUnique(Component->GetPackage());
+    if (bIncludeFolders)
+        for (FFolder Folder = GetFolder(); !Folder.IsNone(); Folder = Folder.GetParent())
+            if (const UActorFolder* Object = Folder.GetActorFolder()) Packages.AddUnique(Object->GetPackage());
+#endif
+    return Packages;
+}
+
 void ADustfallAtmosphereFX::FindDirectors()
 {
     UClass* EnvironmentClass = LoadClass<AActor>(nullptr,
@@ -100,9 +134,22 @@ void ADustfallAtmosphereFX::BeginPlay()
     Post.bOverride_AutoExposureBias = true;
     Post.AutoExposureBias = T.NightExposureBias;
     Post.bOverride_SceneColorTint = true;
+    // SceneView.cpp LERP_PP(SceneColorTint): high-priority full-night override
+    // replaces Phase3's (1,.65,.35), rather than multiplying an inverse tint.
     Post.SceneColorTint = T.NightSceneTint;
+    Post.bOverride_ColorSaturation = true;
+    Post.ColorSaturation = FVector4(1, 1, 1, T.NightSaturation);
     Post.bOverride_ColorOffset = true;
     Post.ColorOffset = FVector4(0, 0, 0, T.NightBlackLift);
+    if (T.HorizonMaterial)
+    {
+        HorizonMID = UMaterialInstanceDynamic::Create(T.HorizonMaterial, this);
+        NightPostProcess->AddOrUpdateBlendable(HorizonMID.Get());
+        HorizonMID->SetVectorParameterValue(TEXT("HorizonColor"), T.NightHorizonColor);
+        HorizonMID->SetVectorParameterValue(TEXT("HaloColor"), T.MoonHaloColor);
+        HorizonMID->SetScalarParameterValue(TEXT("HorizonWidth"), T.HorizonWidth);
+        HorizonMID->SetScalarParameterValue(TEXT("HaloRadians"), FMath::DegreesToRadians(T.MoonHaloDegrees));
+    }
     FRandomStream Random(T.Seed);
     const int32 Count = FMath::Clamp(T.MoteCount, 0, 256);
     for (UInstancedStaticMeshComponent* Layer : {Motes.Get(), Sheets.Get()}) Layer->SetStaticMesh(T.DustPlane);
@@ -144,19 +191,24 @@ void ADustfallAtmosphereFX::Tick(float DeltaSeconds)
     const float Storm = static_cast<float>(ReadNumber(Environment, TEXT("StormIntensity")));
     if (auto* Fog = ReadComponent<UExponentialHeightFogComponent>(Environment, TEXT("FogComponent")))
     {
-        // UE height fog: transmittance = max(exp2(-integrated density), 1-MaxOpacity).
-        // At constant height it is an exponential in distance.
-        // SceneCore.cpp divides density by 1000; HeightFogCommon.ush multiplies
-        // the horizontal integral by ln(2) before exp2: T=exp(-rho/1000*ln(2)^2*d).
-        // rho=3.3 and start=50cm give T(15m)~.10 at fog reference height.
-        // Cap .92 preserves 8% far contrast; a 12m landmark can survive that
-        // where small detail cannot.
-        // Local moving sheets add near occlusion without increasing the far integral.
-        // Volumetrics integrate separately and ignore this cap: default extinction=0.
-        // 15m is a visual target, not a distance guaranteed by density alone (altitude
-        // and lighting matter). Lead must tune with the 5/10/15/25/150m probes.
+        // UE5.8 HeightFogCommon.ush CalculateHeightFog excludes VFogDistance/cos(view angle)
+        // from the analytic integral; StartDistance=max(exclusion, authored start).
+        // CombineVolumetricFog multiplies both transmissions; FogMaxOpacity caps ONLY
+        // the analytic part. VolumetricFog.usf uses extinction=.5*rho/1000*scale.
+        // At the boundary analytic T starts at 1, so there is NO transmission step.
+        // Storm scale .96 nearly matches analytic ln(2)^2=.48045 slope; lighting may
+        // still differ across the froxel boundary (engine limitation; inspect captures).
+        // Horizontal reference-height predictions at 5/10/15/25/150m (not pixel contrast):
+        // calm rho=.3, V=60m, ext=.2, cap=.82: .985/.970/.956/.928/.228
+        // haze rho=.6, V=40m, ext=.3, cap=.86: .956/.914/.874/.799/.098
+        // storm rho=3.3, V=10m, ext=.96, cap=.51: .453/.205/.101/.101/.101
+        // Night keeps these caps. Height variation, other fog and dust affect images.
         Fog->SetFogMaxOpacity(FMath::Clamp(Math::Weather(T.FogMaxOpacity, Weather, Storm), 0.f, 1.f));
         Fog->SetStartDistance(Math::Weather(T.FogStartDistance, Weather, Storm));
+        Fog->SetVolumetricFogDistance(Math::Weather(T.VolumetricFogDistance, Weather, Storm));
+        Fog->SetVolumetricFog(true);
+        Fog->SetVolumetricFogStartDistance(0.f);
+        Fog->SetVolumetricFogNearFadeInDistance(0.f);
         Fog->SetVolumetricFogExtinctionScale(Math::Weather(T.VolumetricExtinction, Weather, Storm));
         Fog->SetFogInscatteringColor(FMath::Lerp(Fog->FogInscatteringLuminance, T.NightFogColor, Night));
         Fog->SetDirectionalInscatteringColor(FMath::Lerp(DayDirectionalFogColor, T.NightFogColor, Night));
@@ -170,6 +222,11 @@ void ADustfallAtmosphereFX::Tick(float DeltaSeconds)
     }
     Moon->SetIntensity(T.MoonLux * Night);
     NightPostProcess->BlendWeight = Night;
+    if (HorizonMID)
+    {
+        const FVector Direction = -Moon->GetForwardVector();
+        HorizonMID->SetVectorParameterValue(TEXT("MoonDirection"), FLinearColor(static_cast<float>(Direction.X), static_cast<float>(Direction.Y), static_cast<float>(Direction.Z)));
+    }
     InteriorVisibility = Math::Approach(InteriorVisibility, IsValid(Survival) && !IsInside(Survival) ? 1.f : 0.f, T.InteriorFadeSpeed, DeltaSeconds);
     const float Opacity = Math::Weather(T.DustOpacity, Weather, Storm) * InteriorVisibility;
     for (UMaterialInstanceDynamic* MID : {MoteMID.Get(), SheetMID.Get()})
@@ -183,7 +240,14 @@ void ADustfallAtmosphereFX::Tick(float DeltaSeconds)
     const FQuat View = Camera->GetCameraRotation().Quaternion();
     // Plane mesh is 100cm square in XY, normal +Z; rotate it to face the camera.
     const FQuat Facing = FRotationMatrix::MakeFromZY(-View.GetForwardVector(), T.WindDirection.GetSafeNormal()).ToQuat();
-    const FVector Wind = View.UnrotateVector(T.WindDirection.GetSafeNormal()) * Math::Weather(T.DustSpeed, Weather, Storm);
+    const FVector LocalWind = Facing.UnrotateVector(T.WindDirection.GetSafeNormal());
+    const float Speed = Math::Weather(T.DustSpeed, Weather, Storm);
+    const FVector Wind = View.UnrotateVector(T.WindDirection.GetSafeNormal()) * Speed;
+    // Plane local Y is projected wind; both material octaves use this direction/speed.
+    for (UMaterialInstanceDynamic* MID : {MoteMID.Get(), SheetMID.Get()})
+        if (MID) MID->SetVectorParameterValue(TEXT("Pan"), FLinearColor(
+            -static_cast<float>(LocalWind.X * T.NoisePan.X) * Speed / FMath::Max(T.SheetSize, 1.f),
+            -static_cast<float>(LocalWind.Y * T.NoisePan.Y) * Speed / FMath::Max(T.SheetSize, 1.f), 0, 0));
     const float Density = FMath::Clamp(Math::Weather(T.DustDensity, Weather, Storm), 0.f, 1.f);
     SheetDrift += Wind * DeltaSeconds;
     for (int32 Index = 0; Index < Positions.Num(); ++Index)

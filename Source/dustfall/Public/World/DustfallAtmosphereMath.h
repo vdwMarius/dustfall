@@ -29,6 +29,21 @@ struct FDustfallAtmosphereMath
         const float Size = FMath::Max(2.f * HalfExtent, SMALL_NUMBER);
         return FMath::Fmod(FMath::Fmod(Position + HalfExtent, Size) + Size, Size) - HalfExtent;
     }
+    static float CombinedTransmittance(float Density, float DistanceCM, float StartCM, float MaxOpacity,
+        float VolumetricDistanceCM, float Extinction)
+    {
+        // VolumetricFog.usf: extinction=rho/1000 * .5 * scale, integrated with exp().
+        // HeightFogCommon.ush: analytic ray excludes the volumetric ViewZ range.
+        const float NearDistance = FMath::Min(FMath::Max(0.f, DistanceCM), FMath::Max(0.f, VolumetricDistanceCM));
+        const float Near = FMath::Exp(-Density / 1000.f * .5f * Extinction * NearDistance);
+        return Near * HorizontalTransmittance(Density, DistanceCM, FMath::Max(StartCM, VolumetricDistanceCM), MaxOpacity);
+    }
+    static float SheetEdge(float U, float V)
+    {
+        // Same compact support as material: radius .42 leaves an 8% zero border.
+        const float R2 = FMath::Square(U - .5f) + FMath::Square(V - .5f);
+        return FMath::Square(FMath::Clamp(1.f - R2 / (.42f * .42f), 0.f, 1.f));
+    }
     static float HorizontalTransmittance(float Density, float DistanceCM, float StartCM, float MaxOpacity)
     {
         // HeightFogCommon.ush: horizontal integral uses ln(2), followed by exp2.
