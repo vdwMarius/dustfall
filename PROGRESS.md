@@ -14,8 +14,14 @@ Completed:
   darkened the storm fog instead was rejected (daytime storms went near black).
   Captures: `Docs/Phase5/AtmosphereV3_*.png`, `AtmosphereV4_storm_day*.png`.
 - M5t terrain: `ValidateTerrainFeatures` dry run (reports every problem in one
-  pass, editor stays clean), self-solving switchback descents, guard-pinned
-  profiles, simultaneous path carving. **Terrain v2 is NOT applied to the map.**
+  pass), self-solving switchback descents, guard-pinned profiles, simultaneous
+  path carving. **Terrain v2 is applied and saved** (canyon "the Scar",
+  escarpments, six descents, two new trails). The first applies failed because
+  the landscape has a second additive edit layer ("Flat Middle") and the tool
+  measured layer 0 alone; authoring now solves on the merged surface and
+  writes the inverse into layer 0. Note: a validate-only run now marks the
+  landscape proxy packages dirty (read-only access to the upper layer);
+  restart the editor without saving afterwards.
 - M4 kit: 36-piece Blender habitat kit generated and imported to
   `/Game/Habitat/Kit` (importer scale/socket/collision checks passed). Not yet
   placed in the level; the old shelter is unchanged.
@@ -23,9 +29,14 @@ Completed:
 Tested:
 - Editor build: zero errors, zero warnings. `Dustfall.Core`: 14/14.
 - `smoke_phase5_editor.py` passed after the atmosphere changes.
-- Terrain dry run on real data: 10 of 11 paths/descents valid; `scar_trail`
-  fails near the canyon rim (cross slope 1.86, profile error 92 cm); round 4
-  in progress.
+- Terrain: all 11 paths/descents valid on the merged surface (new trails
+  grade <= 0.11, descents 0.18-0.25, cross slope <= 0.011). After apply,
+  collision matched authored heights within 0.52 cm at 1,427 points; protected
+  sites (home, wreck, ruin, cruiser, routes) verified unmoved; 84 packages
+  saved; smoke passed again on the new terrain.
+- Terrain captures NOT taken (`capture_phase5_terrain.py` has a Python API
+  bug). PCG rocks/debris still sit on the old ground until the M5p dressing
+  rebuild runs (in progress): expect floating/buried rocks near the canyon.
 - Storm captures at light x2: figures clear at 5/10 m, faint at 15–25 m,
   ridges and the 150 m box readable as faint silhouettes.
 
@@ -38,8 +49,9 @@ Not tested / limits:
 - Round 3 and 4 terrain C++ was reviewed by build, tests and dry run, not
   line by line.
 
-Next: finish `scar_trail`, apply terrain v2, rebuild PCG dressing (M5p), place
-the habitat kit, then the performance lock.
+Next: PCG dressing rebuild on the new terrain (M5p) and terrain captures,
+place the habitat kit, then the performance lock. Nobody has walked the new
+terrain yet: descents, trails and fall risks need a user playtest.
 
 ## 2026-11-13 — M3b: native survival director, Enhanced Input
 
