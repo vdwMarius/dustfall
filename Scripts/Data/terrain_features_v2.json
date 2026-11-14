@@ -28,12 +28,15 @@
     ],
     "run_order": [
       "Lead closes editor, builds dustfallEditor (Json is an editor-only dependency), opens foundation with sole writer lock.",
-      "Run Scripts/build_phase5_terrain.py as __main__; wait for Docs/Phase5_TerrainResults.json status complete, not queue completion.",
+      "Run Scripts/build_phase5_terrain.py as __main__ (default VALIDATE_ONLY=True); inspect Docs/Phase5_TerrainResults.json status validation_passed and all measurements. No cells loaded, actors spawned, assemblies authored or packages dirtied.",
+      "Apply with runpy.run_path(script, run_name='__main__', init_globals={'VALIDATE_ONLY': False}); validation repeats before cell loading, then authoring validates again atomically; wait for status complete.",
       "Review native measurements and collision probes; run Dustfall.Core.Terrain tests and brief existing smoke.",
       "Run Scripts/capture_phase5_terrain.py as __main__; wait for Saved/Codex/Phase5Terrain/report.json and review all images.",
       "PCG rebuild is a separate task using TerrainMasks and resolved/source feature JSON."
     ],
-    "expected_measurements": "Nominal Scar cut 4800cm; Shelf step 6000cm; west drop 4000cm, modified by existing relief/protection/end blends. Original route grades <8%; paths <=7.9%; descents <=22/28/32/25/28/28%. Output reports actual quantised grades, cross-section drops and wall angles, not nominal acceptance."
+    "expected_measurements": "Nominal Scar cut 4800cm; Shelf step 6000cm; west drop 4000cm. Existing route profiles preserved/measured. wreck_ruin target .11; scar_trail and shelf_trail targets .18, hard ceilings .20. Descents <= configured .22/.28/.32/.25/.28/.28 after output quantisation; short lines extended with hairpins.",
+    "descent_generation": "Explicit lines are kept when long enough. Short or anchor-only descents get deterministic alternating wall-parallel hairpins inside corridor_width_cm (full wall-along extent), using top/bottom endpoints. Radius >= minimum_turn_radius_cm; lane spacing includes full tread, shoulders and two raster margins. Generated output is in native validation paths and TerrainMasks/polylines.json on apply. Impossible physical corridors are reported before editor changes. Anchor form: top_anchor_cm plus bottom_anchor_cm; alternatively parent and side (-1/+1 of directed canyon line) derive the canyon foot, or parent high_side derives the escarpment foot. Parent geometry and explicit anchor positions are not moved.",
+    "grade_policy": "route_reference preserves the exact baseline profile, reporting target grade exceedance without rejecting it. New trails use max_grade as target with hard_max_grade (default .20); descents enforce max_grade after generating required run with grade reserve. Baseline protection cores retain precedence and conflicts are reported together."
   },
   "protection": {
     "discs_cm": [
@@ -598,7 +601,8 @@
       "max_cross_slope": 0.02,
       "sink_cm": 20,
       "endpoint_blend_cm": 1500,
-      "route_reference": "Home_Wreck"
+      "route_reference": "Home_Wreck",
+      "minimum_tread_width_cm": 350.0
     },
     {
       "id": "wreck_ruin",
@@ -610,7 +614,8 @@
       "max_cross_slope": 0.02,
       "sink_cm": 20,
       "endpoint_blend_cm": 1500,
-      "route_reference": "Wreck_Ruin"
+      "route_reference": "Wreck_Ruin",
+      "minimum_tread_width_cm": 350.0
     },
     {
       "id": "home_cruiser",
@@ -622,7 +627,8 @@
       "max_cross_slope": 0.02,
       "sink_cm": 20,
       "endpoint_blend_cm": 1500,
-      "route_reference": "Home_Cruiser"
+      "route_reference": "Home_Cruiser",
+      "minimum_tread_width_cm": 350.0
     },
     {
       "id": "scar_trail",
@@ -651,7 +657,9 @@
           -35000,
           -27000
         ]
-      ]
+      ],
+      "minimum_tread_width_cm": 300.0,
+      "hard_max_grade": 0.2
     },
     {
       "id": "shelf_trail",
@@ -680,7 +688,9 @@
           44000,
           43500
         ]
-      ]
+      ],
+      "minimum_tread_width_cm": 300.0,
+      "hard_max_grade": 0.2
     },
     {
       "id": "scar_switchback",
@@ -806,7 +816,10 @@
       "max_grade": 0.22,
       "max_cross_slope": 0.02,
       "sink_cm": 20,
-      "endpoint_blend_cm": 1500
+      "endpoint_blend_cm": 1500,
+      "minimum_tread_width_cm": 350,
+      "corridor_width_cm": 60000,
+      "minimum_turn_radius_cm": 1500
     },
     {
       "id": "scar_gully",
@@ -884,7 +897,10 @@
       "max_grade": 0.28,
       "max_cross_slope": 0.02,
       "sink_cm": 20,
-      "endpoint_blend_cm": 1500
+      "endpoint_blend_cm": 1500,
+      "minimum_tread_width_cm": 350,
+      "corridor_width_cm": 60000,
+      "minimum_turn_radius_cm": 1500
     },
     {
       "id": "scar_scramble",
@@ -938,7 +954,10 @@
       "max_grade": 0.32,
       "max_cross_slope": 0.02,
       "sink_cm": 20,
-      "endpoint_blend_cm": 1500
+      "endpoint_blend_cm": 1500,
+      "minimum_tread_width_cm": 400,
+      "corridor_width_cm": 60000,
+      "minimum_turn_radius_cm": 1500
     },
     {
       "id": "shelf_notch",
@@ -1012,7 +1031,10 @@
       "max_grade": 0.25,
       "max_cross_slope": 0.02,
       "sink_cm": 20,
-      "endpoint_blend_cm": 1500
+      "endpoint_blend_cm": 1500,
+      "minimum_tread_width_cm": 400,
+      "corridor_width_cm": 60000,
+      "minimum_turn_radius_cm": 1500
     },
     {
       "id": "scar_west_escape",
@@ -1086,7 +1108,10 @@
       "max_grade": 0.28,
       "max_cross_slope": 0.02,
       "sink_cm": 20,
-      "endpoint_blend_cm": 1500
+      "endpoint_blend_cm": 1500,
+      "minimum_tread_width_cm": 350,
+      "corridor_width_cm": 60000,
+      "minimum_turn_radius_cm": 1500
     },
     {
       "id": "scar_east_escape",
@@ -1160,7 +1185,10 @@
       "max_grade": 0.28,
       "max_cross_slope": 0.02,
       "sink_cm": 20,
-      "endpoint_blend_cm": 1500
+      "endpoint_blend_cm": 1500,
+      "minimum_tread_width_cm": 350,
+      "corridor_width_cm": 60000,
+      "minimum_turn_radius_cm": 1500
     }
   ]
 }

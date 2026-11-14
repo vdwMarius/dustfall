@@ -1,6 +1,8 @@
 """Terrain v2 authoring, under the Lead's sole editor lock, after a full build.
 
-Run with runpy.run_path(..., run_name='__main__'). Never generates PCG.
+Defaults to VALIDATE_ONLY=True. Apply after reviewing a passing dry run with:
+runpy.run_path(..., run_name='__main__', init_globals={'VALIDATE_ONLY': False}).
+Never generates PCG. Validation runs before cell loading or actor authoring.
 Outputs are asynchronous: wait for Docs/Phase5_TerrainResults.json status.
 Schema validation/resolution is pure Python and may be reviewed without Unreal.
 """
@@ -12,6 +14,8 @@ import pathlib
 import runpy
 import time
 import traceback
+
+VALIDATE_ONLY = globals().get('VALIDATE_ONLY', True)
 
 
 def rounded_line(line, radius=1200.0):
@@ -72,6 +76,32 @@ def resolve_features(data, cruiser, routes):
         elif kind not in ('canyon', 'escarpment', 'path', 'descent'):
             raise ValueError('Unsupported feature '+kind)
         if 'route_reference' in f: f['line_cm'] = routes[f['route_reference']]
+        if kind == 'descent' and 'line_cm' not in f:
+            # Anchor-only descents use the native generator when the direct run is short.
+            # Without a bottom anchor, derive the foot from the parent wall and side.
+            top = f['top_anchor_cm']
+            bottom = f.get('bottom_anchor_cm')
+            if bottom is None:
+                parent = next(p for p in data['features'] if p['id'] == f['parent'])
+                best = None
+                for a, b in zip(parent['line_cm'], parent['line_cm'][1:]):
+                    length = math.dist(a,b)
+                    tangent = [(b[k]-a[k])/length for k in range(2)]
+                    t = max(0,min(length,sum((top[k]-a[k])*tangent[k] for k in range(2))))
+                    q = [a[k]+t*tangent[k] for k in range(2)]
+                    candidate = (math.dist(top,q), q, [-tangent[1],tangent[0]])
+                    if best is None or candidate[0] < best[0]: best = candidate
+                _, q, normal = best
+                if parent['type'] == 'canyon':
+                    side = f['side']
+                    if side not in (-1,1): raise ValueError('Descent side must be -1 or +1: '+ident)
+                    # Centre of that half of the canyon floor, clear of the talus.
+                    offset = side*min(parent['floor_width_cm'])/4
+                elif parent['type'] == 'escarpment':
+                    offset = -parent['high_side']*parent['talus_width_cm']
+                else: raise ValueError('Anchor descent requires canyon/escarpment parent: '+ident)
+                bottom = [q[k]+normal[k]*offset for k in range(2)]
+            f['line_cm'] = [top, bottom]
         if kind in ('canyon','escarpment','path','descent'):
             line = f['line_cm']
             if len(line) < 2 or any(len(v) != 2 for v in line) or any(math.dist(a,b) < 1 for a,b in zip(line,line[1:])):
@@ -98,6 +128,18 @@ def resolve_features(data, cruiser, routes):
         if kind in ('path','descent'):
             if stage != 'path' or any(f[k] <= 0 for k in ('width_cm','shoulder_cm','endpoint_blend_cm','max_grade','max_cross_slope')):
                 raise ValueError('Invalid path '+ident)
+            f.setdefault('minimum_tread_width_cm', f['width_cm'])
+            if not 68 <= f['minimum_tread_width_cm'] <= f['width_cm']:
+                raise ValueError('Tread must fit a radius 34cm capsule: '+ident)
+            if kind == 'descent':
+                if any(f[k] <= 0 for k in ('corridor_width_cm','minimum_turn_radius_cm')):
+                    raise ValueError('Invalid generator corridor '+ident)
+                if f['minimum_turn_radius_cm'] < f['width_cm']/2 + f['shoulder_cm']:
+                    raise ValueError('Turn radius cannot support outer tread/shoulder '+ident)
+            else:
+                f.setdefault('hard_max_grade', .20)
+                if not 0 < f['hard_max_grade'] < 1:
+                    raise ValueError('Invalid hard grade ceiling '+ident)
             if not 0 <= f['sink_cm'] <= 25 or f['max_grade'] >= 1: raise ValueError('Invalid path tuning '+ident)
     if any(f['type'] == 'descent' and f['parent'] not in ids for f in data['features']): raise ValueError('Unknown descent parent')
     data['resolved'] = dict(validated=True, discs_cm=p['discs_cm']+[[*cruiser,p['cruiser_radius_cm']]],
@@ -123,7 +165,6 @@ def main():
         if unreal.EditorLevelLibrary.get_game_world(): raise RuntimeError('Stop PIE before authoring')
         if any('L_Dustfall_Foundation' in p for p in before):
             raise RuntimeError('Foundation has pre-existing unsaved changes; preserve/save those before terrain authoring')
-        runpy.run_path(str(root/'Scripts/load_phase3_authoring_cells.py'))
         current = list(actors.get_all_level_actors())
         landscape = next(a for a in current if isinstance(a,unreal.Landscape))
         if '/Game/World/Maps/L_Dustfall_Foundation' not in landscape.get_path_name(): raise RuntimeError('Wrong map')
@@ -138,6 +179,29 @@ def main():
         report.update(feature_source=str(source.relative_to(root)), feature_sha256=hashlib.sha256(source.read_bytes()).hexdigest(),
                       resolved_features=str(resolved.relative_to(root)),design_changes=data['documentation']['design_changes'],
                       fall_cache_risks=data['documentation']['fall_cache_risks'])
+        baseline=root/'Scripts/Data/Phase3LandscapeBaseline.bin'
+        validation_file=root/'Saved/Codex/phase5_terrain_validation.json'
+        status=unreal.DustfallTerrainLibrary.validate_terrain_features(
+            landscape,str(baseline),str(resolved),str(validation_file))
+        validation=json.loads(validation_file.read_text())
+        report.update(validation=validation, native_result=status, validate_only=VALIDATE_ONLY)
+        after_validation={p.get_path_name() for p in dirty()}
+        report['validation_editor_stayed_clean'] = after_validation == before
+        if after_validation != before:
+            raise RuntimeError('Validation changed dirty package set; stopping before authoring')
+        if not status.startswith('OK'):
+            report.update(status='validation_failed', native=validation)
+            write()
+            unreal.log_error(status)
+            return
+        if VALIDATE_ONLY:
+            report.update(status='validation_passed', native=validation)
+            write()
+            return
+        # First potentially dirty operation, only after full native validation.
+        runpy.run_path(str(root/'Scripts/load_phase3_authoring_cells.py'))
+        current = list(actors.get_all_level_actors())
+        landscape = next(a for a in current if isinstance(a,unreal.Landscape))
         world = unreal.EditorLevelLibrary.get_editor_world()
         ignore = [a for a in current if not isinstance(a,unreal.LandscapeProxy)]
         breaker = unreal.get_default_object(unreal.GameplayStatics.static_class())
@@ -155,10 +219,11 @@ def main():
             if phase3['TAG'] not in [str(t) for t in a.tags]: continue
             loc=a.get_actor_location()
             geology.append((a,loc,trace(loc.x,loc.y)))
-        baseline=root/'Scripts/Data/Phase3LandscapeBaseline.bin'
         status=unreal.DustfallTerrainLibrary.author_terrain_from_features(landscape,str(baseline),str(resolved),str(native_file))
         report['native_result']=status
-        if not status.startswith('OK'): raise RuntimeError(status)
+        if not status.startswith('OK'):
+            if native_file.exists(): report['native']=json.loads(native_file.read_text())
+            raise RuntimeError(status)
         report.update(status='waiting_for_collision',baseline_sha256=hashlib.sha256(baseline.read_bytes()).hexdigest())
         state=dict(start=time.monotonic(),handle=None,last_poll=0)
         def finish_tick(delta):
