@@ -7,7 +7,7 @@ Override: Saved/Codex/atmosphere_fx_override.json, object of tuning property nam
 (snake_case); vector/color values are arrays. Optional environment object accepts
 StormFogDensity. The existing atmosphere_override.json is also honored for that
 key, using build_phase3_environment.py's TUNING/override convention. Starting storm
-density is 3.3, with 10m volumetrics and a combined ~10% far transmission floor.
+density is 3.3, with matched-source 10m volumetrics and a .263 far transmission floor.
 Only that DA field changes; the Phase3 builder's graph/lighting passes do not run.
 Material graph constants describe shape/algorithm; runtime tuning is in the DA.
 
@@ -39,7 +39,7 @@ Authoring APIs/types:
   MaterialExpressionConstant/Constant2Vector/ScalarParameter/VectorParameter/
   TextureCoordinate/SphereMask/PerInstanceCustomData/VertexInterpolator/
   ComponentMask/Panner/AppendVector/Noise/CameraPositionWS/WorldPosition/
-  Distance/Subtract/Divide/Max/Saturate/Add/Multiply/DepthFade;
+  Distance/Subtract/Divide/Max/Saturate/Add/Multiply/DepthFade/Normalize/Length;
   Actor.set_actor_label/set_folder_path;
   Actor.get_folder_path; native DustfallAtmosphereFX.get_authoring_packages;
   native DustfallAtmosphereFX and DustfallAtmosphereTuning reflected properties.
@@ -154,9 +154,10 @@ def material(name):
     noise = binary('Add', node('Constant', r=.15), binary('Add',
                    binary('Multiply', noises[0], node('Constant', r=.55)),
                    binary('Multiply', noises[1], node('Constant', r=.30))))
-    # Tiny streaks need solid cores; noise only modulates the broad sheets.
+    # Feather particles further; thin, low-opacity filaments rather than bright lenses.
     if name == 'M_DustfallMotes':
         noise = node('Constant', r=1.)
+        edge = binary('Multiply', edge, edge)
     camera = node('CameraPositionWS')
     world = node('WorldPosition')
     distance = binary('Distance', camera, world)
@@ -169,6 +170,29 @@ def material(name):
     depth = node('DepthFade')
     link(opacity, depth, 'Opacity'); link(scalar('DepthFade', 120.), depth, 'FadeDistance')
     color = node('VectorParameter', parameter_name='DustColor', default_value=unreal.LinearColor(.25, .17, .10, 1))
+    # Cheap flashlight scattering on existing dust geometry. Read-only runtime
+    # spotlight parameters; smooth cone/range/depth fades, no extra light or pass.
+    def vector(name, value):
+        v = node('VectorParameter', parameter_name=name, default_value=value)
+        rgb = node('ComponentMask', r=True, g=True, b=True, a=False)
+        link(v, rgb, '')
+        return rgb
+
+    offset = binary('Subtract', world, vector('FlashlightPosition', unreal.LinearColor(0, 0, 0, 0)))
+    normalized = node('Normalize'); link(offset, normalized, 'VectorInput')
+    cosine = binary('DotProduct', normalized, vector('FlashlightDirection', unreal.LinearColor(1, 0, 0, 0)))
+    outer = scalar('FlashlightCosOuter', .85)
+    cone = node('Saturate')
+    link(binary('Divide', binary('Subtract', cosine, outer), binary('Max',
+        binary('Subtract', scalar('FlashlightCosInner', .95), outer), node('Constant', r=.001))), cone, '')
+    # smoothstep cone, finite support at attenuation radius
+    cone = binary('Multiply', binary('Multiply', cone, cone), binary('Subtract', node('Constant', r=3.), binary('Multiply', node('Constant', r=2.), cone)))
+    length = node('Length'); link(offset, length, '')
+    radial = node('Saturate')
+    link(binary('Subtract', node('Constant', r=1.), binary('Divide', length,
+        binary('Max', scalar('FlashlightRange', 2000.), node('Constant', r=1.)))), radial, '')
+    beam = binary('Multiply', binary('Multiply', cone, binary('Multiply', radial, radial)), scalar('FlashlightGain', 0.))
+    color = binary('Add', color, binary('Multiply', vector('FlashlightColor', unreal.LinearColor(1, 1, 1, 1)), beam))
     require(g.connect_material_property(color, '', unreal.MaterialProperty.MP_EMISSIVE_COLOR), 'Emissive connection failed')
     require(g.connect_material_property(depth, '', unreal.MaterialProperty.MP_OPACITY), 'Opacity connection failed')
     g.recompile_material(m)
@@ -257,7 +281,9 @@ def expected_transmittance(densities, values):
             max(math.exp(-rho/1000*math.log(2)**2*max(0, d*100-max(start, extent))), 1-cap), 5) for d in distances}
     return {'distances_m': distances, 'reference': 'horizontal at fog reference height, centre ray; predicted transmission, not measured contrast',
             'values': rows,
-            'engine': 'HeightFogCommon.ush excludes volumetric ViewZ/cos(angle), max with StartDistance; analytic T starts at 1. CombineVolumetricFog multiplies near T and capped analytic T. VolumetricFog.usf density factor .5. No transmission step; different inscattering/froxel resolution can leave a lighting seam.'}
+            'engine': 'HeightFogCommon.ush GetExponentialHeightFog/CalculateHeightFog/CombineVolumetricFog: analytic excludes V/cos(angle); StartDistance is an exclusion, not a blend. VolumetricFog.usf MaterialSetup/FinalIntegration: sigma=.5*rho/1000*ext, Cv=(j/sigma)*(1-Tv). Homogeneous medium, black albedo and j=C*sigma match source radiance: Cv+Tv*Ca=C*(1-Tv*Ta). NearFadeInDistance is camera-side only; no far crossfade. SceneCore.cpp divides legacy emissive settings by 10000, so component setting=10000*C*sigma. Optional read-only r.SupportExpFogMatchesVolumetricFog=1 requires effective ext=1 for source matching; table assumes project default 0.',
+            'contrast_target': 'Lead measured ~4%; aim ~8%. Previous C++ .96/.51 floor=.101; baked .5/.40 floor=.263. Predicted transmission is not measured contrast; capture required.',
+            'seam_option': 'Both fog systems, matched emissive source. Height falloff and second density zero; directional/sky extra inscattering off. Flashlight cone approximated on dust geometry; no physical volumetric shafts.'}
 
 
 def main():
@@ -314,12 +340,15 @@ def main():
                         'horizon_width', 'moon_halo_degrees', 'post_process_priority', 'moon_lux', 'moon_elevation_scale', 'moon_yaw_offset',
                         'moon_disc_degrees', 'volume_forward', 'sheet_size', 'sheet_opacity_scale',
                         'sheet_drift_fraction', 'bounds_fade_fraction', 'density_feather',
-                        'mote_fraction', 'mote_diameter',
+                        'mote_fraction', 'mote_diameter', 'streak_width_scale', 'streak_opacity_scale', 'speck_opacity_scale',
+                        'streak_reference_speed', 'streak_minimum_length_scale', 'flashlight_dust_gain',
+                        'ground_dust_height', 'ground_sheet_size', 'ground_trace_distance',
                         'interior_fade_speed', 'near_fade_start', 'near_fade_end', 'depth_fade_distance']
         vectors = ['fog_max_opacity', 'fog_start_distance', 'volumetric_extinction', 'volumetric_fog_distance', 'dust_density',
-                   'dust_opacity', 'dust_speed', 'wind_direction', 'volume_half_extent', 'sheet_distances']
-        pairs = ['mote_size', 'noise_pan']
-        colors = ['night_horizon_color', 'moon_halo_color', 'night_fog_color', 'night_scene_tint', 'moon_color', 'moon_disc_scale', 'day_dust_color', 'night_dust_color']
+                   'dust_opacity', 'dust_speed', 'wind_direction', 'volume_half_extent', 'sheet_distances',
+                   'ground_dust_opacity', 'ground_sheet_heights']
+        pairs = ['mote_size', 'noise_pan', 'particle_size_variation']
+        colors = ['calm_fog_color', 'haze_fog_color', 'storm_fog_color', 'night_horizon_color', 'moon_halo_color', 'night_fog_color', 'night_scene_tint', 'moon_color', 'moon_disc_scale', 'day_dust_color', 'night_dust_color']
         allowed = scalar_names + vectors + pairs + colors + ['seed', 'mote_count', 'moon_shadows']
         require(not set(fx_values)-set(allowed), 'Unknown override keys: '+str(set(fx_values)-set(allowed)))
         values = {name: defaults.get_editor_property(name) for name in allowed}
@@ -336,7 +365,7 @@ def main():
                     require(int(value) == value, 'Integer required: '+name)
                     value = int(value)
             values[name] = value
-        require(0 <= values['mote_count'] <= 256, 'mote_count outside 0..256')
+        require(0 <= values['mote_count'] <= 512, 'mote_count outside 0..512')
         require(values['near_fade_end'] > values['near_fade_start'] >= 0, 'Invalid near fade')
         require(values['twilight_end'] > values['twilight_start'], 'Invalid twilight interval')
         require(min(values['volume_half_extent'].x, values['volume_half_extent'].y, values['volume_half_extent'].z) > 0, 'Invalid dust volume')
@@ -344,6 +373,12 @@ def main():
         require(min(values['volumetric_fog_distance'].x, values['volumetric_fog_distance'].y, values['volumetric_fog_distance'].z) > 0, 'Volumetric range must be positive')
         require(min(values['volumetric_extinction'].x, values['volumetric_extinction'].y, values['volumetric_extinction'].z) >= 0, 'Negative extinction')
         require(all(0 <= v <= 1 for v in [values['fog_max_opacity'].x, values['fog_max_opacity'].y, values['fog_max_opacity'].z]), 'Fog cap outside 0..1')
+        require(values['particle_size_variation'].y >= values['particle_size_variation'].x > 0, 'Invalid particle size variation')
+        require(values['ground_dust_height'] > 0 and values['ground_sheet_size'] > 0 and values['ground_trace_distance'] > 0, 'Invalid ground dust dimensions')
+        require(all(0 <= v < values['ground_dust_height'] for v in [values['ground_sheet_heights'].x, values['ground_sheet_heights'].y, values['ground_sheet_heights'].z]), 'Ground sheets must be below ground_dust_height')
+        require(values['ground_dust_height'] <= 150, 'Ground dust must stay within 1.5m')
+        require(values['streak_reference_speed'] > 0 and values['streak_width_scale'] > 0, 'Invalid streak dimensions')
+        require(all(0 <= values[k] <= 1 for k in ['mote_fraction', 'streak_opacity_scale', 'speck_opacity_scale', 'sheet_opacity_scale']), 'Invalid dust opacity/fraction')
         env_data = require(unreal.load_asset('/Game/Data/DA_Environment_Phase2'), 'Environment tuning missing')
         mote = material('M_DustfallMotes')
         sheet = material('M_DustfallSheets')
@@ -386,7 +421,7 @@ def main():
         report.update(status='authored; compile/PIE/visual/GPU acceptance required', actor=actor.get_path_name(),
                       tuning=tuning.get_path_name(), overrides=override, storm_density=density,
                       values={k: str(v) for k, v in values.items()}, transmittance=expected_transmittance([env_data.get_editor_property('CalmFogDensity'), env_data.get_editor_property('HazeFogDensity'), density], values),
-                      silhouette_floor='T_volumetric * (1-FogMaxOpacity); default storm ~.101')
+                      silhouette_floor='T_volumetric * (1-FogMaxOpacity); default storm ~.263; near 15m unchanged from Lead-tuned .5/.40 split')
     except Exception as exc:
         report.update(status='failed', errors=[str(exc)])
         raise

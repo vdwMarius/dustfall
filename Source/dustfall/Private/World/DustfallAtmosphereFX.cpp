@@ -7,7 +7,10 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/PostProcessComponent.h"
 #include "Components/SkyLightComponent.h"
+#include "Components/SpotLightComponent.h"
+#include "HAL/IConsoleManager.h"
 #include "EngineUtils.h"
+#include "GameFramework/Pawn.h"
 #include "Engine/World.h"
 #if WITH_EDITOR
 #include "ActorFolder.h"
@@ -59,7 +62,8 @@ ADustfallAtmosphereFX::ADustfallAtmosphereFX()
     NightPostProcess->BlendWeight = 0.f;
     Motes = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Motes"));
     Sheets = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Sheets"));
-    for (UInstancedStaticMeshComponent* Layer : {Motes.Get(), Sheets.Get()})
+    GroundSheets = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("GroundSheets"));
+    for (UInstancedStaticMeshComponent* Layer : {Motes.Get(), Sheets.Get(), GroundSheets.Get()})
     {
         Layer->SetupAttachment(RootComponent);
         Layer->SetMobility(EComponentMobility::Movable);
@@ -119,9 +123,10 @@ void ADustfallAtmosphereFX::BeginPlay()
     Super::BeginPlay();
     if (!Tuning) { SetActorTickEnabled(false); return; }
     FindDirectors();
+    LandscapeClass = LoadClass<AActor>(nullptr, TEXT("/Script/Landscape.LandscapeProxy"));
+    for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+        if (!LandscapeClass || !It->IsA(LandscapeClass)) GroundTraceIgnoredActors.Add(*It);
     const auto& T = *Tuning;
-    if (const auto* Fog = ReadComponent<UExponentialHeightFogComponent>(Environment, TEXT("FogComponent")))
-        DayDirectionalFogColor = Fog->DirectionalInscatteringLuminance;
     Moon->SetLightColor(T.MoonColor);
     Moon->SetLightSourceAngle(T.MoonDiscDegrees);
     Moon->SetAtmosphereSunDiskColorScale(T.MoonDiscScale);
@@ -151,11 +156,15 @@ void ADustfallAtmosphereFX::BeginPlay()
         HorizonMID->SetScalarParameterValue(TEXT("HaloRadians"), FMath::DegreesToRadians(T.MoonHaloDegrees));
     }
     FRandomStream Random(T.Seed);
-    const int32 Count = FMath::Clamp(T.MoteCount, 0, 256);
-    for (UInstancedStaticMeshComponent* Layer : {Motes.Get(), Sheets.Get()}) Layer->SetStaticMesh(T.DustPlane);
+    const int32 Count = FMath::Clamp(T.MoteCount, 0, 512);
+    for (UInstancedStaticMeshComponent* Layer : {Motes.Get(), Sheets.Get(), GroundSheets.Get()}) Layer->SetStaticMesh(T.DustPlane);
     if (T.MoteMaterial) MoteMID = Motes->CreateDynamicMaterialInstance(0, T.MoteMaterial);
-    if (T.SheetMaterial) SheetMID = Sheets->CreateDynamicMaterialInstance(0, T.SheetMaterial);
-    for (UMaterialInstanceDynamic* MID : {MoteMID.Get(), SheetMID.Get()})
+    if (T.SheetMaterial)
+    {
+        SheetMID = Sheets->CreateDynamicMaterialInstance(0, T.SheetMaterial);
+        GroundMID = GroundSheets->CreateDynamicMaterialInstance(0, T.SheetMaterial);
+    }
+    for (UMaterialInstanceDynamic* MID : {MoteMID.Get(), SheetMID.Get(), GroundMID.Get()})
     {
         if (!MID) continue;
         MID->SetScalarParameterValue(TEXT("NearStart"), T.NearFadeStart);
@@ -169,12 +178,16 @@ void ADustfallAtmosphereFX::BeginPlay()
             Random.FRandRange(-static_cast<float>(T.VolumeHalfExtent.Y), static_cast<float>(T.VolumeHalfExtent.Y)),
             Random.FRandRange(-static_cast<float>(T.VolumeHalfExtent.Z), static_cast<float>(T.VolumeHalfExtent.Z))));
         Variations.Add(Random.FRand());
-        Sizes.Add(Random.FRand() < T.MoteFraction ? FVector2D(T.MoteDiameter, T.MoteDiameter) : T.MoteSize);
+        const bool bSpeck = Random.FRand() < T.MoteFraction;
+        const float SizeVariation = Random.FRandRange(static_cast<float>(T.ParticleSizeVariation.X), static_cast<float>(T.ParticleSizeVariation.Y));
+        Sizes.Add((bSpeck ? FVector2D(T.MoteDiameter, T.MoteDiameter) : T.MoteSize) * SizeVariation);
+        Specks.Add(bSpeck);
         Motes->AddInstance(FTransform::Identity);
         Motes->SetCustomDataValue(Index, 0, static_cast<float>(Random.FRandRange(.5f, 1.f)));
     }
     for (int32 Index = 0; Index < 3; ++Index)
     {
+        GroundSheets->AddInstance(FTransform::Identity);
         Sheets->AddInstance(FTransform::Identity);
         Sheets->SetCustomDataValue(Index, 0, static_cast<float>(Random.FRandRange(.5f, 1.f)));
     }
@@ -191,27 +204,54 @@ void ADustfallAtmosphereFX::Tick(float DeltaSeconds)
     const float Storm = static_cast<float>(ReadNumber(Environment, TEXT("StormIntensity")));
     if (auto* Fog = ReadComponent<UExponentialHeightFogComponent>(Environment, TEXT("FogComponent")))
     {
-        // UE5.8 HeightFogCommon.ush CalculateHeightFog excludes VFogDistance/cos(view angle)
-        // from the analytic integral; StartDistance=max(exclusion, authored start).
-        // CombineVolumetricFog multiplies both transmissions; FogMaxOpacity caps ONLY
-        // the analytic part. VolumetricFog.usf uses extinction=.5*rho/1000*scale.
-        // At the boundary analytic T starts at 1, so there is NO transmission step.
-        // Storm scale .96 nearly matches analytic ln(2)^2=.48045 slope; lighting may
-        // still differ across the froxel boundary (engine limitation; inspect captures).
-        // Horizontal reference-height predictions at 5/10/15/25/150m (not pixel contrast):
-        // calm rho=.3, V=60m, ext=.2, cap=.82: .985/.970/.956/.928/.228
-        // haze rho=.6, V=40m, ext=.3, cap=.86: .956/.914/.874/.799/.098
-        // storm rho=3.3, V=10m, ext=.96, cap=.51: .453/.205/.101/.101/.101
-        // Night keeps these caps. Height variation, other fog and dust affect images.
+        // UE5.8 HeightFogCommon.ush: CalculateHeightFog excludes V/cos(view angle);
+        // StartDistance=max(exclusion, start), NOT a far crossfade. CombineVolumetricFog
+        // returns Cv + Tv*Ca, Tv*Ta. NearFadeInDistance fades the CAMERA-side start only.
+        // VolumetricFog.usf MaterialSetup: sigma=.5*rho/1000*ext; Integration:
+        // Cv=(j/sigma)*(1-Tv). Choose j=C*sigma and zero albedo so BOTH source
+        // radiances equal C: Cv+Tv*Ca=C*(1-Tv*Ta). No radiance boundary in day/night.
+        // Homogeneous height/second layer is essential: legacy emissive is a constant
+        // density, not height-modulated. PROJECT_EXPFOG_MATCHES_VFOG instead multiplies
+        // j by .5*rho/1000 and uses Emissive as analytic C (requires ext=1).
+        // SceneCore.cpp scales legacy emissive settings by 1/10000, so author
+        // 10000*C*sigma. Do not confuse the component setting with shader j.
+        // No engine/config change. Physical local-light scattering is replaced by a
+        // cheap spotlight cone evaluated on the six dust sheets and tiny particles.
+        // Horizontal predictions at 5/10/15/25/150m (transmission, NOT pixel contrast):
+        // calm rho=.3 V=60m ext=.2 cap=.82: .985/.970/.956/.928/.228
+        // haze rho=.6 V=40m ext=.3 cap=.86: .956/.914/.874/.799/.098
+        // storm rho=3.3 V=10m ext=.5 cap=.40: .662/.438/.263/.263/.263
+        // Previous C++ .96/.51 split gave .101 far; tuned .5/.40 gives .263,
+        // aiming above the measured 4% toward 8% after matching source radiance.
+        // Actual contrast depends on sky/exposure/dust: capture, do not infer a pass.
         Fog->SetFogMaxOpacity(FMath::Clamp(Math::Weather(T.FogMaxOpacity, Weather, Storm), 0.f, 1.f));
         Fog->SetStartDistance(Math::Weather(T.FogStartDistance, Weather, Storm));
         Fog->SetVolumetricFogDistance(Math::Weather(T.VolumetricFogDistance, Weather, Storm));
         Fog->SetVolumetricFog(true);
         Fog->SetVolumetricFogStartDistance(0.f);
         Fog->SetVolumetricFogNearFadeInDistance(0.f);
-        Fog->SetVolumetricFogExtinctionScale(Math::Weather(T.VolumetricExtinction, Weather, Storm));
-        Fog->SetFogInscatteringColor(FMath::Lerp(Fog->FogInscatteringLuminance, T.NightFogColor, Night));
-        Fog->SetDirectionalInscatteringColor(FMath::Lerp(DayDirectionalFogColor, T.NightFogColor, Night));
+        float Extinction = Math::Weather(T.VolumetricExtinction, Weather, Storm);
+        const FLinearColor DayColor = FMath::Lerp(Weather == 0 ? T.CalmFogColor : T.HazeFogColor, T.StormFogColor, FMath::Clamp(Storm, 0.f, 1.f));
+        const FLinearColor Source = FMath::Lerp(DayColor, T.NightFogColor, Night);
+        const IConsoleVariable* Match = IConsoleManager::Get().FindConsoleVariable(TEXT("r.SupportExpFogMatchesVolumetricFog"));
+        const bool bMatches = Match && Match->GetInt() != 0;
+        // The optional engine matching permutation binds analytic C to Emissive,
+        // so equality then requires extinction=1. Current project uses default 0.
+        if (bMatches) Extinction = 1.f;
+        Fog->SetFogHeightFalloff(0.f);
+        Fog->SetSecondFogDensity(0.f);
+        Fog->SetVolumetricFogExtinctionScale(Extinction);
+        Fog->SetVolumetricFogAlbedo(FColor::Black);
+        Fog->SetVolumetricFogEmissive(bMatches ? Source : Source * Math::EmissiveSetting(Fog->FogDensity, Extinction));
+        Fog->SetFogInscatteringColor(Source);
+        Fog->SetInscatteringColorCubemap(nullptr);
+        Fog->SetSkyAtmosphereAmbientContributionColorScale(FLinearColor::Black);
+        Fog->SetDirectionalInscatteringColor(FLinearColor::Black);
+        if (Fog->SkyLightCaptureAffectsHeightFogStrength != 0.f)
+        {
+            Fog->SkyLightCaptureAffectsHeightFogStrength = 0.f;
+            Fog->MarkRenderStateDirty();
+        }
     }
     if (auto* Sky = ReadComponent<USkyLightComponent>(Environment, TEXT("SkyComponent")))
         Sky->SetIntensity(FMath::Max(Sky->Intensity, T.NightSkyMinimum * Night));
@@ -229,14 +269,39 @@ void ADustfallAtmosphereFX::Tick(float DeltaSeconds)
     }
     InteriorVisibility = Math::Approach(InteriorVisibility, IsValid(Survival) && !IsInside(Survival) ? 1.f : 0.f, T.InteriorFadeSpeed, DeltaSeconds);
     const float Opacity = Math::Weather(T.DustOpacity, Weather, Storm) * InteriorVisibility;
-    for (UMaterialInstanceDynamic* MID : {MoteMID.Get(), SheetMID.Get()})
+    for (UMaterialInstanceDynamic* MID : {MoteMID.Get(), SheetMID.Get(), GroundMID.Get()})
     {
         if (!MID) continue;
-        MID->SetScalarParameterValue(TEXT("Opacity"), Opacity * (MID == SheetMID.Get() ? T.SheetOpacityScale : 1.f));
+        const float LayerOpacity = MID == GroundMID.Get() ? Math::Weather(T.GroundDustOpacity, Weather, Storm)
+            : MID == SheetMID.Get() ? T.SheetOpacityScale : T.StreakOpacityScale;
+        MID->SetScalarParameterValue(TEXT("Opacity"), Opacity * LayerOpacity);
         MID->SetVectorParameterValue(TEXT("DustColor"), FMath::Lerp(T.DayDustColor, T.NightDustColor, Night));
     }
     APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0);
     if (!Camera) return;
+    // Runtime presentation only: read the existing flashlight, never change it.
+    USpotLightComponent* Flashlight = nullptr;
+    if (AActor* Pawn = UGameplayStatics::GetPlayerPawn(this, 0))
+    {
+        TInlineComponentArray<USpotLightComponent*> Lights;
+        Pawn->GetComponents(Lights);
+        for (USpotLightComponent* Light : Lights)
+            if (Light->GetName().Contains(TEXT("Flashlight"))) { Flashlight = Light; break; }
+    }
+    for (UMaterialInstanceDynamic* MID : {MoteMID.Get(), SheetMID.Get(), GroundMID.Get()})
+    {
+        if (!MID) continue;
+        const bool bLit = Flashlight && Flashlight->IsVisible() && Flashlight->Intensity > 0.f;
+        MID->SetScalarParameterValue(TEXT("FlashlightGain"), bLit ? T.FlashlightDustGain : 0.f);
+        if (!bLit) continue;
+        const FVector Position = Flashlight->GetComponentLocation(), Direction = Flashlight->GetForwardVector();
+        MID->SetVectorParameterValue(TEXT("FlashlightPosition"), FLinearColor(static_cast<float>(Position.X), static_cast<float>(Position.Y), static_cast<float>(Position.Z)));
+        MID->SetVectorParameterValue(TEXT("FlashlightDirection"), FLinearColor(static_cast<float>(Direction.X), static_cast<float>(Direction.Y), static_cast<float>(Direction.Z)));
+        MID->SetScalarParameterValue(TEXT("FlashlightRange"), Flashlight->AttenuationRadius);
+        MID->SetScalarParameterValue(TEXT("FlashlightCosOuter"), FMath::Cos(FMath::DegreesToRadians(Flashlight->OuterConeAngle)));
+        MID->SetScalarParameterValue(TEXT("FlashlightCosInner"), FMath::Cos(FMath::DegreesToRadians(Flashlight->InnerConeAngle)));
+        MID->SetVectorParameterValue(TEXT("FlashlightColor"), Flashlight->GetLightColor());
+    }
     const FQuat View = Camera->GetCameraRotation().Quaternion();
     // Plane mesh is 100cm square in XY, normal +Z; rotate it to face the camera.
     const FQuat Facing = FRotationMatrix::MakeFromZY(-View.GetForwardVector(), T.WindDirection.GetSafeNormal()).ToQuat();
@@ -244,7 +309,7 @@ void ADustfallAtmosphereFX::Tick(float DeltaSeconds)
     const float Speed = Math::Weather(T.DustSpeed, Weather, Storm);
     const FVector Wind = View.UnrotateVector(T.WindDirection.GetSafeNormal()) * Speed;
     // Plane local Y is projected wind; both material octaves use this direction/speed.
-    for (UMaterialInstanceDynamic* MID : {MoteMID.Get(), SheetMID.Get()})
+    for (UMaterialInstanceDynamic* MID : {MoteMID.Get(), SheetMID.Get(), GroundMID.Get()})
         if (MID) MID->SetVectorParameterValue(TEXT("Pan"), FLinearColor(
             -static_cast<float>(LocalWind.X * T.NoisePan.X) * Speed / FMath::Max(T.SheetSize, 1.f),
             -static_cast<float>(LocalWind.Y * T.NoisePan.Y) * Speed / FMath::Max(T.SheetSize, 1.f), 0, 0));
@@ -265,8 +330,9 @@ void ADustfallAtmosphereFX::Tick(float DeltaSeconds)
             1.f - FMath::Abs(Position.Z) / FMath::Max(T.VolumeHalfExtent.Z, 1.)));
         const float Active = Math::Smooth(0, T.DensityFeather, Density - Variations[Index])
             * Math::Smooth(0, T.BoundsFadeFraction, Margin);
-        Motes->SetCustomDataValue(Index, 0, Active * FMath::Lerp(.5f, 1.f, Variations[Index]));
-        const FVector Scale(Sizes[Index].X / 100.f, Sizes[Index].Y / 100.f, 1);
+        Motes->SetCustomDataValue(Index, 0, Active * FMath::Lerp(.5f, 1.f, Variations[Index]) * (Specks[Index] ? T.SpeckOpacityScale : 1.f));
+        const float LengthScale = Specks[Index] ? 1.f : Math::StreakLength(Speed, T.StreakReferenceSpeed, T.StreakMinimumLengthScale);
+        const FVector Scale(Sizes[Index].X * (Specks[Index] ? 1.f : T.StreakWidthScale) / 100.f, Sizes[Index].Y * LengthScale / 100.f, 1);
         Motes->UpdateInstanceTransform(Index, FTransform(Facing, Location, Scale), true, false, true);
     }
     for (int32 Index = 0; Index < 3; ++Index)
@@ -277,6 +343,46 @@ void ADustfallAtmosphereFX::Tick(float DeltaSeconds)
         Sheets->UpdateInstanceTransform(Index, FTransform(Facing, Camera->GetCameraLocation() + View.RotateVector(Offset),
             FVector(T.SheetSize / 100.f, T.SheetSize / 100.f, 1)), true, false, true);
     }
+    // Trace landscape below the camera, ignoring authored rocks/roofs so they
+    // cannot block the terrain query. Tangent planes
+    // within 1.5m of the terrain under the camera. No saved world modifications.
+    FHitResult Ground;
+    FCollisionQueryParams Query(SCENE_QUERY_STAT(AtmosphereGround), false, this);
+    Query.AddIgnoredActor(UGameplayStatics::GetPlayerPawn(this, 0));
+    for (const TWeakObjectPtr<AActor>& Ignored : GroundTraceIgnoredActors)
+        if (Ignored.IsValid()) Query.AddIgnoredActor(Ignored.Get());
+    const FVector CameraLocation = Camera->GetCameraLocation();
+    TArray<FHitResult> Hits;
+    GetWorld()->LineTraceMultiByObjectType(Hits, CameraLocation,
+        CameraLocation - FVector(0, 0, T.GroundTraceDistance), FCollisionObjectQueryParams(ECC_WorldStatic), Query);
+    bool bGround = false;
+    for (const FHitResult& Hit : Hits)
+    {
+        if (LandscapeClass && Hit.GetActor() && Hit.GetActor()->IsA(LandscapeClass))
+        {
+            Ground = Hit;
+            bGround = true;
+            break;
+        }
+    }
+    if (bGround)
+    {
+        const FVector Normal = Ground.ImpactNormal.GetSafeNormal();
+        const FQuat GroundFacing = FRotationMatrix::MakeFromZY(Normal, T.WindDirection).ToQuat();
+        const FVector GroundWind = GroundFacing.UnrotateVector(T.WindDirection.GetSafeNormal());
+        if (GroundMID) GroundMID->SetVectorParameterValue(TEXT("Pan"), FLinearColor(
+            -static_cast<float>(GroundWind.X * T.NoisePan.X) * Speed / FMath::Max(T.GroundSheetSize, 1.f),
+            -static_cast<float>(GroundWind.Y * T.NoisePan.Y) * Speed / FMath::Max(T.GroundSheetSize, 1.f), 0, 0));
+        for (int32 Index = 0; Index < 3; ++Index)
+        {
+            const float Height = static_cast<float>(T.GroundSheetHeights[Index]);
+            GroundSheets->SetCustomDataValue(Index, 0, Math::GroundHeightFade(Height, T.GroundDustHeight));
+            GroundSheets->UpdateInstanceTransform(Index, FTransform(GroundFacing, Ground.ImpactPoint + Normal * Height,
+                FVector(T.GroundSheetSize / 100.f, T.GroundSheetSize / 100.f, 1)), true, false, true);
+        }
+    }
+    GroundSheets->SetVisibility(bGround && Opacity > KINDA_SMALL_NUMBER);
+    GroundSheets->MarkRenderStateDirty();
     Motes->SetVisibility(Opacity > KINDA_SMALL_NUMBER);
     Sheets->SetVisibility(Opacity > KINDA_SMALL_NUMBER);
     Motes->MarkRenderStateDirty();

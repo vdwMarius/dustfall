@@ -3,9 +3,10 @@
 Run after build_phase5_atmosphere.py. Wait for report.json terminal status, not
 editor queue completion. Uses isolated survival+exploration slots, restores the
 authored slot after PIE, deletes only its QA slots. No visual or GPU pass inferred.
-All probes spawn in the PIE world; editor terrain is only traced. The native
+Probes spawn temporarily in the editor world (the Lead found Python PIE spawn
+unavailable in this build), and are destroyed after PIE. The native
 capture slot setter bypasses Modify/PostEditChange and restores the original string
-without changing the survival package dirty flag. No editor map actors are spawned.
+without changing the survival package dirty flag. Dirty package differences are reported; no editor packages are saved.
 Source-verified APIs still need live validation (see M6 final handoff summary).
 """
 import json
@@ -20,7 +21,7 @@ import unreal
 ROOT = pathlib.Path(unreal.Paths.project_dir())
 OUT = ROOT/'Saved/Codex/Phase5Atmosphere'
 QA = 'Dustfall_M6_AtmosphereCapture_QA'
-BASE_CASES = [('calm_day', 0, .5, False), ('storm_day', 2, .5, False),
+BASE_CASES = [('calm_day', 0, .5, False), ('haze_day', 1, .5, False), ('storm_day', 2, .5, False),
          ('dusk', 1, .75, False), ('midnight_off', 1, 0., False),
          ('midnight_on', 1, 0., True), ('midnight_moon', 1, 0., False)]
 CASES = [(name+suffix, weather, clock, light, heading)
@@ -81,7 +82,7 @@ def read_png(path):
     return width, height, channels, rows
 
 
-def measure_box(path, camera, rotation, fov, foot):
+def measure_box(path, camera, rotation, fov, foot, horizon=False):
     width, height, channels, rows = read_png(path)
     pitch, yaw = math.radians(rotation.pitch), math.radians(rotation.yaw)
     forward = (math.cos(pitch)*math.cos(yaw), math.cos(pitch)*math.sin(yaw), math.sin(pitch))
@@ -111,9 +112,13 @@ def measure_box(path, camera, rotation, fov, foot):
         return {'center_px': [x, y], 'size_px': 7, 'average_luminance': sum(samples)/len(samples)}
 
     # Upper part avoids the sloping ground that obscures the box's lower face.
-    box = patch([foot[0]-300, foot[1], foot[2]+1000])
-    sky = patch([foot[0]-300, foot[1]+850, foot[2]+1000])
+    # Select the face toward this camera for either +/-X heading. The horizon
+    # view uses sky just ABOVE the box's skyline, not adjacent sloping ground.
+    face = foot[0] + (300 if camera.x > foot[0] else -300)
+    box = patch([face, foot[1], foot[2]+1000])
+    sky = patch([face, foot[1], foot[2]+1450]) if horizon else patch([face, foot[1]+850, foot[2]+1000])
     return {'box': box, 'adjacent_sky': sky, 'contrast': (sky['average_luminance']-box['average_luminance'])/max(sky['average_luminance'], 1e-8),
+            'reference': 'sky above silhouette skyline in horizon view' if horizon else 'adjacent sky in probe view',
             'note': 'Projected 7x7 patches, linearized sRGB; visually confirm sky patch is unobstructed.'}
 
 
@@ -169,7 +174,7 @@ def main():
         if not report['errors']:
             report['status'] = 'complete; visual review and GPU profiling required'
         report['new_dirty_packages'] = sorted(set(dirty_packages())-set(initial_dirty))
-        report['cleanup'] = 'PIE stopped; temporary actors destroyed; authored slot restored without editor notifications; PIE-only probes destroyed; QA slots deleted; no editor packages saved'
+        report['cleanup'] = 'PIE stopped; temporary actors destroyed; authored slot restored without editor notifications; temporary editor probes destroyed; QA slots deleted; no editor packages saved'
         write()
 
     def stop():
@@ -227,9 +232,14 @@ def main():
                 mesh(cube, unreal.Vector(x, y+offset, z+35), unreal.Vector(.27, .22, .7))
             report['targets'].append({'kind': 'human_1.8m', 'horizontal_distance_m': distance,
                                       'angle_degrees': angle, 'foot_cm': [x, y, z]})
-        z = ground(cx+15000, cy)
-        mesh(cube, unreal.Vector(cx+15000, cy, z+600), unreal.Vector(6, 10, 12))
-        report['targets'].append({'kind': 'dark_box_12m', 'horizontal_distance_m': 150, 'foot_cm': [cx+15000, cy, z]})
+        boxes = {}
+        for heading, direction in [('probes', 1), ('horizon', -1)]:
+            x = cx+direction*15000
+            z = ground(x, cy)
+            mesh(cube, unreal.Vector(x, cy, z+600), unreal.Vector(6, 10, 12))
+            boxes[heading] = [x, cy, z]
+            report['targets'].append({'kind': 'dark_box_12m', 'heading': heading,
+                'horizontal_distance_m': 150, 'foot_cm': boxes[heading]})
         if not unreal.DustfallAtmosphereFX.set_capture_save_slot(source, QA):
             raise RuntimeError('Native editor capture slot helper missing; rebuild first')
         state['slot_changed'] = True
@@ -351,7 +361,10 @@ def main():
                     capture['camera_cm'] = [location.x, location.y, location.z]
                     capture['rotation'] = [rotation.pitch, rotation.yaw, rotation.roll]
                     try:
-                        capture['silhouette_luminance'] = measure_box(path, location, rotation, manager.get_fov_angle(), report['targets'][-1]['foot_cm'])
+                        if clock == 0. and heading != 'horizon':
+                            capture['silhouette_luminance'] = {'skipped': 'Night silhouette acceptance uses the matching horizon view.'}
+                        else:
+                            capture['silhouette_luminance'] = measure_box(path, location, rotation, manager.get_fov_angle(), boxes[heading], horizon=heading == 'horizon')
                     except (ValueError, OSError, zlib.error, struct.error) as exc:
                         capture['silhouette_luminance'] = {'skipped': str(exc)}
                     report['captures'].append(capture)

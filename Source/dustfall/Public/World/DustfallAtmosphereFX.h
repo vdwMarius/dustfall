@@ -32,6 +32,7 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Atmosphere") TObjectPtr<UDirectionalLightComponent> Moon;
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Atmosphere") TObjectPtr<UInstancedStaticMeshComponent> Motes;
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Atmosphere") TObjectPtr<UInstancedStaticMeshComponent> Sheets;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Atmosphere") TObjectPtr<UInstancedStaticMeshComponent> GroundSheets;
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Atmosphere") TObjectPtr<UPostProcessComponent> NightPostProcess;
 private:
     void FindDirectors();
@@ -40,10 +41,13 @@ private:
     UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> HorizonMID;
     UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> MoteMID;
     UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> SheetMID;
+    UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> GroundMID;
+    UPROPERTY(Transient) TObjectPtr<UClass> LandscapeClass;
+    TArray<TWeakObjectPtr<AActor>> GroundTraceIgnoredActors;
     TArray<FVector> Positions;
     TArray<float> Variations;
     TArray<FVector2D> Sizes;
-    FLinearColor DayDirectionalFogColor = FLinearColor::Black;
+    TArray<bool> Specks;
     float InteriorVisibility = 0.f;
     FVector SheetDrift = FVector::ZeroVector;
 };
