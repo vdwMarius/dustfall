@@ -66,6 +66,8 @@ struct FFeature
     double Total=0, OriginalRun=0, AnchorDrop=0, RequiredGrade=0, BaselineGrade=0;
     bool bGenerated=false, bGeometryValid=true, bInside=true;
     Object Generation;
+    TArray<bool> Pinned;
+    TArray<Value> GuardCrossings, Overlaps;
     FVector2D BoundsMin, BoundsMax;
 };
 struct FGrid
@@ -206,6 +208,7 @@ FString DustfallAuthorTerrainV2(AActor* Actor, const FString& BaselineFile, cons
         if (F.Type==TEXT("escarpment")) F.Wall=Points(F.Data,TEXT("wall"));
         Features.Add(MoveTemp(F));
     }
+    Features.Sort([](const FFeature& A,const FFeature& B){return A.Id<B.Id;});
     if (Bytes.Num()!=16+G.W*G.H*2) return Fail(TEXT("Baseline size does not match its extent"));
     TArray<uint16> Baseline, Output;
     Baseline.SetNumUninitialized(G.W*G.H); FMemory::Memcpy(Baseline.GetData(),Bytes.GetData()+16,Baseline.Num()*2);
@@ -218,6 +221,8 @@ FString DustfallAuthorTerrainV2(AActor* Actor, const FString& BaselineFile, cons
         for (const FFeature& F:Features) if (F.Stage!=TEXT("path")) Delta+=Relief(F,P);
         G.Z[I]=G.Base[I]+Delta*Guard(P);
     }
+    // Canonical order also makes floating point accumulation reproducible after
+    // reordering the input JSON. No path may read another path's raster output.
     // Every feature is evaluated, even if another feature fails. No landscape edit
     // interface or Modify/dirty call exists until the complete report passes.
     const double Step=N(Sampling,TEXT("path_step_cm"));
@@ -228,13 +233,17 @@ FString DustfallAuthorTerrainV2(AActor* Actor, const FString& BaselineFile, cons
         F.AnchorDrop=G.Sample(F.Line[0])-G.Sample(F.Line.Last());
         const bool bRoute=F.Data->HasField(TEXT("route_reference"));
         const double ReservedGrade=N(F.Data,TEXT("max_grade"))*N(Sampling,TEXT("grade_reserve"));
-        if (F.Type==TEXT("descent") && F.Total<FMath::Abs(F.AnchorDrop)/ReservedGrade*1.01)
+        const double JunctionSupport=N(F.Data,TEXT("width_cm"))*.5+N(F.Data,TEXT("shoulder_cm"))+2*RasterMargin;
+        const double RequiredRun=FMath::Abs(F.AnchorDrop)/ReservedGrade*1.01+2*JunctionSupport+2*N(F.Data,TEXT("endpoint_blend_cm"));
+        if (F.Type==TEXT("descent") && F.Total<RequiredRun)
         {
             FVector2D Tangent=F.Line.Last()-F.Line[0]; Tangent=FVector2D(-Tangent.Y,Tangent.X);
             for (const FFeature& Parent:Features) if (Parent.Id==S(F.Data,TEXT("parent")))
                 Tangent=Math::Project((F.Line[0]+F.Line.Last())*.5,Parent.Line).Tangent;
+            double TraverseDirection=1; F.Data->TryGetNumberField(TEXT("traverse_direction"),TraverseDirection);
+            Tangent*=TraverseDirection;
             const auto Generated=Math::Switchback(F.Line[0],F.Line.Last(),Tangent,
-                FMath::Abs(F.AnchorDrop)/ReservedGrade*1.01,N(F.Data,TEXT("corridor_width_cm")),
+                RequiredRun,N(F.Data,TEXT("corridor_width_cm")),
                 N(F.Data,TEXT("minimum_turn_radius_cm")),
                 N(F.Data,TEXT("width_cm"))+2*(N(F.Data,TEXT("shoulder_cm"))+RasterMargin),Step);
             if (Generated.Error.IsEmpty())
@@ -266,10 +275,10 @@ FString DustfallAuthorTerrainV2(AActor* Actor, const FString& BaselineFile, cons
         for (int32 J=0; J<=Count; ++J)
         {
             const double Arc=F.Total*J/Count; const FVector2D P=Math::AtArc(F.Line,Arc);
-            const FVector2D T=Math::Project(P,F.Line).Tangent, Normal(-T.Y,T.X);
+            const FVector2D T=Math::ProjectTread(P,F.Line).Tangent, Normal(-T.Y,T.X);
             const double Extent=N(F.Data,TEXT("width_cm"))*.5+N(F.Data,TEXT("shoulder_cm"))+RasterMargin;
             bInside &= G.Contains(P) && G.Contains(P+Normal*Extent) && G.Contains(P-Normal*Extent);
-            F.Samples.Add(P); F.Target.Add(G.Sample(P)-(bRoute?0:N(F.Data,TEXT("sink_cm"))*Guard(P)*Math::Smooth(0,N(F.Data,TEXT("endpoint_blend_cm")),FMath::Min(Arc,F.Total-Arc))));
+            F.Samples.Add(P); F.Pinned.Add(J==0 || J==Count || Guard(P)==0); F.Target.Add(G.Sample(P)-(bRoute?0:N(F.Data,TEXT("sink_cm"))*Guard(P)*Math::Smooth(0,N(F.Data,TEXT("endpoint_blend_cm")),FMath::Min(Arc,F.Total-Arc))));
             if (J) F.BaselineGrade=FMath::Max(F.BaselineGrade,FMath::Abs(G.Sample(P,true)-G.Sample(F.Samples[J-1],true))/(P-F.Samples[J-1]).Size());
         }
         F.bInside=bInside;
@@ -277,7 +286,89 @@ FString DustfallAuthorTerrainV2(AActor* Actor, const FString& BaselineFile, cons
         if (N(F.Data,TEXT("width_cm"))<N(F.Data,TEXT("minimum_tread_width_cm")) || N(F.Data,TEXT("minimum_tread_width_cm"))<68)
         { Problem(F.Id,TEXT("Tread too narrow for capsule radius 34cm")); F.bGeometryValid=false; }
         if (F.Type==TEXT("descent"))
-            for (int32 J=0; J<F.Target.Num(); ++J) F.Target[J]=FMath::Lerp(F.Target[0],F.Target.Last(),double(J)/Count);
+        {
+            const double Top=F.Target[0], Bottom=F.Target.Last();
+            for (int32 J=0; J<F.Target.Num(); ++J) F.Target[J]=FMath::Lerp(Top,Bottom,double(J)/Count);
+        }
+        // Protection pins are constraints in the solve, never a late reset of a
+        // previously solved profile. Include every core crossing in the report.
+        const auto Crossings=Math::CoreIntervals(F.Line,Discs,Routes,N(Protection,TEXT("route_inner_cm")));
+        for (const FVector2D& Range:Crossings)
+        {
+            const FVector2D Start=Math::AtArc(F.Line,Range.X),End=Math::AtArc(F.Line,Range.Y);
+            Object Crossing=MakeShared<FJsonObject>();
+            Crossing->SetArrayField(TEXT("arc_range_cm"),{Number(Range.X),Number(Range.Y)});
+            Crossing->SetArrayField(TEXT("start_xy_cm"),{Number(Start.X),Number(Start.Y)});
+            Crossing->SetArrayField(TEXT("end_xy_cm"),{Number(End.X),Number(End.Y)});
+            F.GuardCrossings.Add(Obj(Crossing));
+            for (int32 J=0; J<F.Samples.Num(); ++J)
+            {
+                const double Arc=F.Total*J/Count;
+                if (Arc<Range.X-Step || Arc>Range.Y+Step) continue;
+                F.Target[J]=G.Sample(F.Samples[J],true); F.Pinned[J]=true;
+            }
+        }
+    }
+    // Find shared treads before solving any profile. Pin a level common junction
+    // wide enough to include raster support; shoulders then blend symmetrically.
+    TArray<Value> AllOverlaps;
+    for (int32 A=0; A<Features.Num(); ++A) for (int32 B=A+1; B<Features.Num(); ++B)
+    {
+        FFeature& Left=Features[A]; FFeature& Right=Features[B];
+        if (Left.Stage!=TEXT("path") || Right.Stage!=TEXT("path")) continue;
+        const double Radius=(N(Left.Data,TEXT("width_cm"))+N(Right.Data,TEXT("width_cm")))*.5+2*RasterMargin;
+        const TArray<TArray<FVector2D>> RightCorridor={Right.Line};
+        const TArray<FVector> NoDiscs;
+        const double FootprintRadius=Radius+N(Left.Data,TEXT("shoulder_cm"))+N(Right.Data,TEXT("shoulder_cm"));
+        for (const FVector2D& Range:Math::CoreIntervals(Left.Line,NoDiscs,RightCorridor,FootprintRadius))
+        {
+            Object Shoulder=MakeShared<FJsonObject>();
+            Shoulder->SetArrayField(TEXT("features"),{MakeShared<FJsonValueString>(Left.Id),MakeShared<FJsonValueString>(Right.Id)});
+            Shoulder->SetArrayField(TEXT("first_arc_range_cm"),{Number(Range.X),Number(Range.Y)});
+            Shoulder->SetStringField(TEXT("resolution"),TEXT("full_tread_precedence_then_commutative_shoulder_blend"));
+            AllOverlaps.Add(Obj(Shoulder)); Left.Overlaps.Add(Obj(Shoulder)); Right.Overlaps.Add(Obj(Shoulder));
+        }
+        for (const FVector2D& Range:Math::CoreIntervals(Left.Line,NoDiscs,RightCorridor,Radius))
+        {
+            double RightFirst=TNumericLimits<double>::Max(),RightLast=0,Closest=TNumericLimits<double>::Max();
+            FVector2D Centre=FVector2D::ZeroVector;
+            const int32 Count=FMath::Max(1,FMath::CeilToInt((Range.Y-Range.X)/Step));
+            for (int32 J=0; J<=Count; ++J)
+            {
+                const FVector2D P=Math::AtArc(Left.Line,FMath::Lerp(Range.X,Range.Y,double(J)/Count));
+                const auto Q=Math::Project(P,Right.Line);
+                if (Q.Distance<Closest) { Closest=Q.Distance; Centre=(P+Q.Point)*.5; }
+                RightFirst=FMath::Min(RightFirst,Q.Arc); RightLast=FMath::Max(RightLast,Q.Arc);
+            }
+            const double Height=G.Sample(Centre);
+            Object Junction=MakeShared<FJsonObject>();
+            Junction->SetArrayField(TEXT("features"),{MakeShared<FJsonValueString>(Left.Id),MakeShared<FJsonValueString>(Right.Id)});
+            Junction->SetArrayField(TEXT("xy_cm"),{Number(Centre.X),Number(Centre.Y)});
+            Junction->SetArrayField(TEXT("first_arc_range_cm"),{Number(Range.X),Number(Range.Y)});
+            Junction->SetArrayField(TEXT("second_arc_range_cm"),{Number(RightFirst),Number(RightLast)});
+            const bool bProtected=Left.Data->HasField(TEXT("route_reference")) || Right.Data->HasField(TEXT("route_reference"));
+            Junction->SetStringField(TEXT("resolution"),bProtected?TEXT("protected_baseline_pins"):TEXT("common_level_profile_pins_and_simultaneous_weighted_blend"));
+            AllOverlaps.Add(Obj(Junction)); Left.Overlaps.Add(Obj(Junction)); Right.Overlaps.Add(Obj(Junction));
+            auto Pin=[&](FFeature& F,double From,double To)
+            {
+                const double Padding=N(F.Data,TEXT("width_cm"))*.5+N(F.Data,TEXT("shoulder_cm"))+2*RasterMargin;
+                for (int32 J=0; J<F.Samples.Num(); ++J)
+                {
+                    const double Arc=F.Total*J/(F.Samples.Num()-1);
+                    if (Arc<From-Padding || Arc>To+Padding || Guard(F.Samples[J])<1) continue;
+                    if (F.Pinned[J] && FMath::Abs(F.Target[J]-Height)>N(Sampling,TEXT("profile_tolerance_cm")))
+                    { Problem(F.Id,TEXT("Incompatible junction pin: ")+Left.Id+TEXT(" / ")+Right.Id); F.bGeometryValid=false; }
+                    F.Target[J]=Height; F.Pinned[J]=true;
+                }
+            };
+            if (!bProtected) { Pin(Left,Range.X,Range.Y); Pin(Right,RightFirst,RightLast); }
+        }
+    }
+    Report->SetArrayField(TEXT("path_overlaps"),AllOverlaps);
+    for (FFeature& F:Features) if (F.Stage==TEXT("path"))
+    {
+        const bool bRoute=F.Data->HasField(TEXT("route_reference"));
+        const double ReservedGrade=N(F.Data,TEXT("max_grade"))*N(Sampling,TEXT("grade_reserve"));
         if (bRoute) continue; // Protected baseline profile has precedence over target grade.
         double Limit=ReservedGrade;
         if (F.Type!=TEXT("descent"))
@@ -285,21 +376,33 @@ FString DustfallAuthorTerrainV2(AActor* Actor, const FString& BaselineFile, cons
             double Ceiling=.20; F.Data->TryGetNumberField(TEXT("hard_max_grade"),Ceiling);
             Limit=FMath::Min(Ceiling*N(Sampling,TEXT("grade_reserve")),FMath::Max(Limit,F.RequiredGrade*1.001));
         }
-        if (!Math::LimitGrade(F.Samples,F.Target,Limit,true))
+        if (!Math::LimitPinnedGrade(F.Samples,F.Target,Limit,F.Pinned,N(F.Data,TEXT("endpoint_blend_cm")),N(F.Data,TEXT("sink_cm"))))
         { Problem(F.Id,TEXT("Endpoint grade exceeds available safe corridor / hard ceiling")); F.bGeometryValid=false; }
-        for (int32 Y=G.Y1; Y<=G.Y2; ++Y) for (int32 X=G.X1; X<=G.X2; ++X)
+    }
+    // Simultaneous rasterisation: every cut reads immutable relief and contributes
+    // to a commutative weighted junction. Route features never write terrain.
+    for (int32 Y=G.Y1; Y<=G.Y2; ++Y) for (int32 X=G.X1; X<=G.X2; ++X)
+    {
+        const FVector2D P=G.World(X,Y); const int32 I=(Y-G.Y1)*G.W+X-G.X1;
+        double Sum=0,Weights=0,Coverage=0,TreadSum=0,TreadWeights=0,TreadCoverage=0;
+        for (const FFeature& F:Features) if (F.Stage==TEXT("path") && !F.Data->HasField(TEXT("route_reference")))
         {
-            const FVector2D P=G.World(X,Y);
             if (P.X<F.BoundsMin.X || P.X>F.BoundsMax.X || P.Y<F.BoundsMin.Y || P.Y>F.BoundsMax.Y) continue;
-            const auto Q=Math::Project(P,F.Line);
+            const auto Q=Math::ProjectTread(P,F.Line);
             const double Half=N(F.Data,TEXT("width_cm"))*.5, Shoulder=N(F.Data,TEXT("shoulder_cm"));
-            if (Q.Distance>Half+Shoulder+FMath::Sqrt(Scale.X*Scale.X+Scale.Y*Scale.Y)) continue;
-            const double U=Q.Arc/F.Total*Count; const int32 J=FMath::Min(FMath::FloorToInt(U),Count-1);
+            if (Q.Distance>Half+Shoulder+RasterMargin) continue;
+            const double U=Q.Arc/F.Total*(F.Target.Num()-1);
+            const int32 J=FMath::Clamp(FMath::FloorToInt(U),0,F.Target.Num()-2);
             const double Target=FMath::Lerp(F.Target[J],F.Target[J+1],U-J);
-            const double Weight=1-Math::Smooth(Half+RasterMargin,Half+RasterMargin+Shoulder,Q.Distance);
-            const int32 I=(Y-G.Y1)*G.W+X-G.X1;
-            G.Z[I]=FMath::Lerp(G.Z[I],Target,Weight);
+            const double Weight=(1-Math::Smooth(Half+RasterMargin,Half+RasterMargin+Shoulder,Q.Distance))*Guard(P);
+            if (Q.Distance<=Half+RasterMargin)
+            { TreadSum+=Weight*Target; TreadWeights+=Weight; TreadCoverage=FMath::Max(TreadCoverage,Weight); }
+            else { Sum+=Weight*Target; Weights+=Weight; Coverage=FMath::Max(Coverage,Weight); }
         }
+        // A neighbouring shoulder must never tilt a full tread. Multiple full
+        // treads share the common junction pins prepared above.
+        if (TreadWeights>0) G.Z[I]=FMath::Lerp(G.Z[I],TreadSum/TreadWeights,TreadCoverage);
+        else if (Weights>0) G.Z[I]=FMath::Lerp(G.Z[I],Sum/Weights,Coverage);
     }
     Output.SetNumUninitialized(Baseline.Num());
     int32 Changed=0, Clipped=0; double MinDelta=0,MaxDelta=0;
@@ -308,7 +411,6 @@ FString DustfallAuthorTerrainV2(AActor* Actor, const FString& BaselineFile, cons
     for (int32 Y=G.Y1; Y<=G.Y2; ++Y) for (int32 X=G.X1; X<=G.X2; ++X)
     {
         const int32 I=(Y-G.Y1)*G.W+X-G.X1; const FVector2D P=G.World(X,Y);
-        if (Guard(P)==0) G.Z[I]=G.Base[I];
         const double Encoded=(G.Z[I]-G.Transform.GetLocation().Z)*128./Scale.Z+32768.;
         if (!FMath::IsFinite(Encoded) || Encoded<0 || Encoded>65535) ++Clipped;
         Output[I]=uint16(FMath::RoundToInt(FMath::IsFinite(Encoded)?FMath::Clamp(Encoded,0.,65535.):32768.));
@@ -320,6 +422,8 @@ FString DustfallAuthorTerrainV2(AActor* Actor, const FString& BaselineFile, cons
             Tiles.Add(FIntPoint(FMath::FloorToInt((P.X-TileOrigin)/TileSize),FMath::FloorToInt((P.Y-TileOrigin)/TileSize)));
         }
     }
+    Report->SetArrayField(TEXT("landscape_location_cm"),{Number(G.Transform.GetLocation().X),Number(G.Transform.GetLocation().Y),Number(G.Transform.GetLocation().Z)});
+    Report->SetArrayField(TEXT("landscape_scale"),{Number(Scale.X),Number(Scale.Y),Number(Scale.Z)});
     Report->SetNumberField(TEXT("clipped_vertices"),Clipped);
     if (Clipped) Problem(TEXT("landscape"),TEXT("Feature exceeds uint16/ScaleZ height range"));
     Report->SetArrayField(TEXT("height_delta_range_cm"),{Number(MinDelta),Number(MaxDelta)});
@@ -352,7 +456,7 @@ FString DustfallAuthorTerrainV2(AActor* Actor, const FString& BaselineFile, cons
             for (int32 J=0; J<=Count; ++J)
             {
                 const double Arc=F.Total*J/Count; const FVector2D P=Math::AtArc(F.Line,Arc);
-                const FVector2D T=Math::Project(P,F.Line).Tangent, Normal(-T.Y,T.X);
+                const FVector2D T=Math::ProjectTread(P,F.Line).Tangent, Normal(-T.Y,T.X);
                 bCentreInside &= G.Contains(P);
                 if (F.Type==TEXT("canyon"))
                 {
@@ -380,22 +484,60 @@ FString DustfallAuthorTerrainV2(AActor* Actor, const FString& BaselineFile, cons
         if (F.Stage==TEXT("path"))
         {
             double Grade=0, CrossSlope=0, TargetError=0; TArray<Value> Polyline;
+            Object WorstGrade, WorstCross, WorstError;
+            auto Diagnostic=[&](const FVector2D& P,double Arc,double Measurement)
+            {
+                Object D=MakeShared<FJsonObject>(); D->SetArrayField(TEXT("xy_cm"),{Number(P.X),Number(P.Y)});
+                D->SetNumberField(TEXT("arc_cm"),Arc); D->SetNumberField(TEXT("value"),Measurement);
+                FString Cause=TEXT("unknown");
+                if (Guard(P)<1) Cause=TEXT("guard_reset");
+                else
+                {
+                    for (const FFeature& Other:Features) if (Other.Stage==TEXT("path") && Other.Id!=F.Id)
+                    {
+                        const auto Q=Math::Project(P,Other.Line);
+                        if (Q.Distance<N(Other.Data,TEXT("width_cm"))*.5+N(Other.Data,TEXT("shoulder_cm"))+RasterMargin)
+                        { Cause=TEXT("overlap:")+Other.Id; break; }
+                    }
+                    if (Cause==TEXT("unknown"))
+                    {
+                        const auto A=Math::ProjectTread(Math::AtArc(F.Line,FMath::Max(0.,Arc-RasterMargin)),F.Line);
+                        const auto B=Math::ProjectTread(Math::AtArc(F.Line,FMath::Min(F.Total,Arc+RasterMargin)),F.Line);
+                        Cause=FVector2D::DotProduct(A.Tangent,B.Tangent)<.99999?TEXT("bend"):TEXT("raster");
+                    }
+                }
+                D->SetStringField(TEXT("cause"),Cause); return D;
+            };
             for (int32 J=0; J<F.Samples.Num(); ++J)
             {
                 const FVector2D P=F.Samples[J]; const double Z=G.Sample(P);
                 Polyline.Add(Array({Number(P.X),Number(P.Y),Number(Z)}));
-                TargetError=FMath::Max(TargetError,FMath::Abs(Z-F.Target[J]));
-                if (J) Grade=FMath::Max(Grade,FMath::Abs(Z-G.Sample(F.Samples[J-1]))/(P-F.Samples[J-1]).Size());
-                const FVector2D T=Math::Project(P,F.Line).Tangent, Normal(-T.Y,T.X);
+                const double Arc=F.Total*J/(F.Samples.Num()-1),Error=FMath::Abs(Z-F.Target[J]);
+                if (!WorstError || Error>TargetError) { TargetError=Error; WorstError=Diagnostic(P,Arc,Error); }
+                if (J)
+                {
+                    const double Measured=FMath::Abs(Z-G.Sample(F.Samples[J-1]))/(P-F.Samples[J-1]).Size();
+                    if (!WorstGrade || Measured>Grade)
+                    { Grade=Measured; WorstGrade=Diagnostic((P+F.Samples[J-1])*.5,Arc-F.Total/(F.Samples.Num()-1)*.5,Grade); }
+                }
+                const FVector2D T=Math::ProjectTread(P,F.Line).Tangent, Normal(-T.Y,T.X);
                 const double Half=N(F.Data,TEXT("width_cm"))*.5;
                 const int32 Across=FMath::CeilToInt(2*Half/Step);
                 double PreviousZ=G.Sample(P-Normal*Half);
                 for (int32 K=1; K<=Across; ++K)
                 {
                     const double NextZ=G.Sample(P+Normal*(-Half+2*Half*K/Across));
-                    CrossSlope=FMath::Max(CrossSlope,FMath::Abs(NextZ-PreviousZ)/(2*Half/Across)); PreviousZ=NextZ;
+                    const double Measured=FMath::Abs(NextZ-PreviousZ)/(2*Half/Across);
+                    if (!WorstCross || Measured>CrossSlope)
+                    { CrossSlope=Measured; WorstCross=Diagnostic(P+Normal*(-Half+2*Half*(K-.5)/Across),Arc,CrossSlope); }
+                    PreviousZ=NextZ;
                 }
             }
+            M->SetObjectField(TEXT("worst_grade"),WorstGrade);
+            M->SetObjectField(TEXT("worst_cross_slope"),WorstCross);
+            M->SetObjectField(TEXT("worst_profile_error"),WorstError);
+            M->SetArrayField(TEXT("guard_core_crossings"),F.GuardCrossings);
+            M->SetArrayField(TEXT("overlaps"),F.Overlaps);
             M->SetNumberField(TEXT("maximum_profile_error_cm"),TargetError);
             M->SetNumberField(TEXT("endpoint_connection_error_cm"),FMath::Max(
                 FMath::Abs(G.Sample(F.Samples[0])-F.Target[0]),FMath::Abs(G.Sample(F.Samples.Last())-F.Target.Last())));
