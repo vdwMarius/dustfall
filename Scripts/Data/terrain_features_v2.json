@@ -11,7 +11,7 @@
       "crater": "cx,cy,rim_height,rim_radius,rim_sigma,depth,floor_radius",
       "pit": "cx,cy,depth,inner_radius,outer_radius,ramp_height,ramp_cx,ramp_cy,ramp_rx,ramp_ry,ramp_yaw"
     },
-    "order": "Array order within stages: sum all legacy and new relief, multiply combined delta by the original protection guard (linearity reproduces legacy exactly); carve paths in array order; restore hard protection cores; quantise; measure before committing. Always exact baseline. Existing route paths remain at baseline inside their guard. Fillets round new corners by <=12m, never alter original route geometry.",
+    "order": "Sum all legacy/new relief from exact baseline with protection guard. Prepare every path profile from that immutable relief; pin protected stretches and shared tread junctions before limiting grade. Rasterise continuous normal-coordinate treads simultaneously with commutative weighted junction blending. Fade cuts to zero at guard cores; quantise and measure before any landscape edit. Routes retain preserve_baseline policy.",
     "widths": "Full widths. Canyon width pairs interpolate by arc length. Wall knots floor-to-rim horizontal fraction versus rise. high_side=-1 means right of directed line. Polyline corners are rounded by preprocessing in builder. Shelf high_side=+1 (left/NE); west_drop=-1 (right/east). High plateau extends to map edge, with inherited gentle relief. vertical_offset_cm chooses raised high-side Shelf versus lowered west foot, avoiding raising the entire existing world east of west_drop.",
     "masks": "2048 square uint8 raw. Row0=min world Y, col0=min world X, extrema inclusive. paths:255 corridor,1..254 shoulders. cliffs:0 other,85 talus,170 ledge/steep,255 >50 degrees. Classification from final quantised output.",
     "design_changes": [
@@ -19,7 +19,10 @@
       "scar_trail endpoint moved from (-350,-330)m to (-350,-270)m, 60m north, to meet the switchback rim instead of dropping straight to the canyon floor at an impossible trail grade.",
       "shelf_trail endpoint moved from (480,470)m to (440,435)m, 53.15m southwest, to meet the notch foot instead of ending halfway up its wall.",
       "Explicit descent traverses extend along walls around the requested anchors; two additional Scar end escapes serve isolated ends.",
-      "Descent hairpins have explicit 15m-radius arc controls so the walkable corridor does not fold across a sharp polyline reversal."
+      "Descent hairpins have explicit 15m-radius arc controls so the walkable corridor does not fold across a sharp polyline reversal.",
+      "Round3: scar_trail approach (-2500,2500) -> (-6000,-2300)cm; shelf_trail approach (13000,8500) -> (9000,12800)cm. Depart outside protected home/wreck cores whose uneditable baseline cross slope already exceeds .02; landmarks and original route geometry stay fixed.",
+      "Round3: west escape anchors (-85000,-18000)/(-85000,-31300) -> (-83000,-23500)/(-80000,-32667)cm; east (29000,-65000)/(29000,-73800) -> (31700,-65864)/(27000,-72364)cm. Floors moved off the canyon end caps onto the deep centreline; top anchors outside the rim. Native generator supplies sufficient run.",
+      "Round3: scar_gully/scar_scramble retain their top and bottom anchors; replace explicit tight-bend controls with native generated hairpins. Scramble traverse_direction=-1 selects the westward leg, away from the east escape."
     ],
     "fall_cache_risks": [
       "West_drop has no ascent: a surviving fall may leave cache inaccessible from above.",
@@ -34,9 +37,9 @@
       "Run Scripts/capture_phase5_terrain.py as __main__; wait for Saved/Codex/Phase5Terrain/report.json and review all images.",
       "PCG rebuild is a separate task using TerrainMasks and resolved/source feature JSON."
     ],
-    "expected_measurements": "Nominal Scar cut 4800cm; Shelf step 6000cm; west drop 4000cm. Existing route profiles preserved/measured. wreck_ruin target .11; scar_trail and shelf_trail targets .18, hard ceilings .20. Descents <= configured .22/.28/.32/.25/.28/.28 after output quantisation; short lines extended with hairpins.",
-    "descent_generation": "Explicit lines are kept when long enough. Short or anchor-only descents get deterministic alternating wall-parallel hairpins inside corridor_width_cm (full wall-along extent), using top/bottom endpoints. Radius >= minimum_turn_radius_cm; lane spacing includes full tread, shoulders and two raster margins. Generated output is in native validation paths and TerrainMasks/polylines.json on apply. Impossible physical corridors are reported before editor changes. Anchor form: top_anchor_cm plus bottom_anchor_cm; alternatively parent and side (-1/+1 of directed canyon line) derive the canyon foot, or parent high_side derives the escarpment foot. Parent geometry and explicit anchor positions are not moved.",
-    "grade_policy": "route_reference preserves the exact baseline profile, reporting target grade exceedance without rejecting it. New trails use max_grade as target with hard_max_grade (default .20); descents enforce max_grade after generating required run with grade reserve. Baseline protection cores retain precedence and conflicts are reported together."
+    "expected_measurements": "Nominal Scar cut 4800cm; Shelf step 6000cm; west drop 4000cm. Existing route profiles preserved/measured. wreck_ruin target .11; scar_trail and shelf_trail targets .18, hard ceilings .20. Descents <= configured .22/.28/.32/.25/.28/.28 after output quantisation; short lines extended with hairpins. Round3 anchor-only estimates from the real baseline plus analytic relief: west escape drop ~3666cm, east ~2244cm; their floor anchors have >4400cm canyon cut. These are relative-height estimates, not native output acceptance.",
+    "descent_generation": "Explicit lines are kept when long enough. Short or anchor-only descents get deterministic alternating wall-parallel hairpins inside corridor_width_cm (full wall-along extent), using top/bottom endpoints. Radius >= minimum_turn_radius_cm; lane spacing includes full tread, shoulders and two raster margins. Generated output is in native validation paths and TerrainMasks/polylines.json on apply. Impossible physical corridors are reported before editor changes. Anchor form: top_anchor_cm plus bottom_anchor_cm; alternatively parent and side (-1/+1 of directed canyon line) derive the canyon foot, or parent high_side derives the escarpment foot. Parent geometry and explicit anchor positions are not moved. Round3 reserves run for level junctions and smooth grade transitions. Optional traverse_direction=-1 reverses the wall-along leg without moving anchors. Tread heights use continuous normal coordinates with endpoint raster extrapolation. Protected-core arc intervals are computed analytically, including grazing intersections.",
+    "grade_policy": "route_reference preserves the exact baseline profile, reporting target grade exceedance without rejecting it. New trails use max_grade as target with hard_max_grade (default .20); descents enforce max_grade after generating required run with grade reserve. Baseline protection cores retain precedence and conflicts are reported together. Interior spans between fixed constraints use integrated smoothstep grade transitions. sink_cm is retained where the remaining grade budget permits its entrance/exit; shared landings stay level. Full treads take precedence over neighbouring shoulders; equal-class overlaps blend simultaneously in canonical feature-ID order."
   },
   "protection": {
     "discs_cm": [
@@ -642,8 +645,8 @@
       "endpoint_blend_cm": 1500,
       "line_cm": [
         [
-          -2500,
-          2500
+          -6000,
+          -2300
         ],
         [
           -12000,
@@ -673,8 +676,8 @@
       "endpoint_blend_cm": 1500,
       "line_cm": [
         [
-          13000,
-          8500
+          9000,
+          12800
         ],
         [
           26000,
@@ -832,62 +835,6 @@
           -32500
         ],
         [
-          -24000.0,
-          -33500.0
-        ],
-        [
-          -24388.22856765378,
-          -33551.111260566395
-        ],
-        [
-          -24750.0,
-          -33700.96189432334
-        ],
-        [
-          -25060.660171779822,
-          -33939.33982822018
-        ],
-        [
-          -25299.038105676656,
-          -34250.0
-        ],
-        [
-          -25448.8887394336,
-          -34611.77143234621
-        ],
-        [
-          -25500.0,
-          -35000.0
-        ],
-        [
-          -25448.8887394336,
-          -35388.22856765379
-        ],
-        [
-          -25299.038105676656,
-          -35750.0
-        ],
-        [
-          -25060.660171779822,
-          -36060.66017177982
-        ],
-        [
-          -24750.0,
-          -36299.03810567666
-        ],
-        [
-          -24388.22856765378,
-          -36448.888739433605
-        ],
-        [
-          -24000.0,
-          -36500.0
-        ],
-        [
-          -15000,
-          -39000
-        ],
-        [
           -15000,
           -42000
         ]
@@ -913,38 +860,6 @@
           -69000
         ],
         [
-          21000,
-          -70500
-        ],
-        [
-          22500,
-          -69000
-        ],
-        [
-          21000,
-          -67500
-        ],
-        [
-          10000,
-          -66000
-        ],
-        [
-          5000,
-          -63000
-        ],
-        [
-          4500,
-          -61500
-        ],
-        [
-          5500,
-          -60000
-        ],
-        [
-          7500,
-          -60000
-        ],
-        [
           10000,
           -60000
         ]
@@ -957,7 +872,8 @@
       "endpoint_blend_cm": 1500,
       "minimum_tread_width_cm": 400,
       "corridor_width_cm": 60000,
-      "minimum_turn_radius_cm": 1500
+      "minimum_turn_radius_cm": 1500,
+      "traverse_direction": -1
     },
     {
       "id": "shelf_notch",
@@ -1043,64 +959,12 @@
       "parent": "the_scar",
       "line_cm": [
         [
-          -85000,
-          -18000
+          -83000,
+          -23500
         ],
         [
-          -92000.0,
-          -21000.0
-        ],
-        [
-          -92388.22856765377,
-          -21051.1112605664
-        ],
-        [
-          -92750.0,
-          -21200.961894323344
-        ],
-        [
-          -93060.66017177982,
-          -21439.339828220178
-        ],
-        [
-          -93299.03810567666,
-          -21750.0
-        ],
-        [
-          -93448.8887394336,
-          -22111.77143234622
-        ],
-        [
-          -93500.0,
-          -22500.0
-        ],
-        [
-          -93448.8887394336,
-          -22888.22856765378
-        ],
-        [
-          -93299.03810567665,
-          -23250.0
-        ],
-        [
-          -93060.66017177982,
-          -23560.660171779822
-        ],
-        [
-          -92750.0,
-          -23799.038105676656
-        ],
-        [
-          -92388.22856765377,
-          -23948.8887394336
-        ],
-        [
-          -92000.0,
-          -24000.0
-        ],
-        [
-          -85000,
-          -31300
+          -80000,
+          -32667
         ]
       ],
       "width_cm": 350,
@@ -1120,64 +984,12 @@
       "parent": "the_scar",
       "line_cm": [
         [
-          29000,
-          -65000
+          31700,
+          -65864
         ],
         [
-          39000.0,
-          -66500.0
-        ],
-        [
-          39388.22856765379,
-          -66551.1112605664
-        ],
-        [
-          39750.0,
-          -66700.96189432335
-        ],
-        [
-          40060.66017177982,
-          -66939.33982822018
-        ],
-        [
-          40299.03810567666,
-          -67250.0
-        ],
-        [
-          40448.888739433605,
-          -67611.77143234623
-        ],
-        [
-          40500.0,
-          -68000.0
-        ],
-        [
-          40448.888739433605,
-          -68388.22856765377
-        ],
-        [
-          40299.03810567666,
-          -68750.0
-        ],
-        [
-          40060.66017177982,
-          -69060.66017177982
-        ],
-        [
-          39750.0,
-          -69299.03810567665
-        ],
-        [
-          39388.22856765379,
-          -69448.8887394336
-        ],
-        [
-          39000.0,
-          -69500.0
-        ],
-        [
-          29000,
-          -73800
+          27000,
+          -72364
         ]
       ],
       "width_cm": 350,

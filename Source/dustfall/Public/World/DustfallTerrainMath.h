@@ -27,6 +27,16 @@ struct DUSTFALL_API FDustfallTerrainMath
         double MinimumRadius, double MinimumSpacing, double SampleStep);
     static double Smooth(double A, double B, double X);
     static FProjection Project(const FVector2D& Point, const TArray<FVector2D>& Line);
+    // Continuous normal coordinates through bends; endpoint profiles extrapolate
+    // into raster support instead of becoming flat caps at oblique endpoints.
+    static FProjection ProjectTread(const FVector2D& Point, const TArray<FVector2D>& Line);
+    // Exact arc intervals in disc/route capsule cores (including sub-sample grazes).
+    static TArray<FVector2D> CoreIntervals(const TArray<FVector2D>& Line,
+        const TArray<FVector>& Discs, const TArray<TArray<FVector2D>>& Routes, double RouteRadius);
+    // Atomic solve between all baseline/junction pins. Optional smooth grade
+    // transitions and sunken tread use only the remaining grade budget.
+    static bool LimitPinnedGrade(const TArray<FVector2D>& Points, TArray<double>& Heights,
+        double MaximumGrade, const TArray<bool>& Pinned, double TransitionRun = 0, double SinkDepth = 0);
     static FVector2D AtArc(const TArray<FVector2D>& Line, double Arc);
     // Knots are [normalised horizontal distance, normalised rise], including (0,0),(1,1).
     static double Wall(double T, const TArray<FVector2D>& Knots);

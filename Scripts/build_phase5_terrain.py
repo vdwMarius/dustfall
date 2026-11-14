@@ -59,6 +59,7 @@ def resolve_features(data, cruiser, routes):
     if not 0 < s['talus_min_degrees'] < s['talus_max_degrees'] < s['cliff_degrees'] < 90:
         raise ValueError('Invalid slope thresholds')
     counts = {'gaussian_hill': (6,), 'ridged_noise': (7, 8), 'ravine': (11,), 'crater': (7,), 'pit': (11,), 'spire_base': (6,)}
+    source_features = {f['id']: copy.deepcopy(f) for f in data['features']}
     ids = set()
     for f in data['features']:
         ident, kind, stage = f['id'], f['type'], f['stage']
@@ -82,7 +83,8 @@ def resolve_features(data, cruiser, routes):
             top = f['top_anchor_cm']
             bottom = f.get('bottom_anchor_cm')
             if bottom is None:
-                parent = next(p for p in data['features'] if p['id'] == f['parent'])
+                parent = copy.deepcopy(source_features[f['parent']])
+                parent['line_cm'] = rounded_line(parent['line_cm'])
                 best = None
                 for a, b in zip(parent['line_cm'], parent['line_cm'][1:]):
                     length = math.dist(a,b)
@@ -132,6 +134,7 @@ def resolve_features(data, cruiser, routes):
             if not 68 <= f['minimum_tread_width_cm'] <= f['width_cm']:
                 raise ValueError('Tread must fit a radius 34cm capsule: '+ident)
             if kind == 'descent':
+                if f.get('traverse_direction',1) not in (-1,1): raise ValueError('Invalid traverse direction '+ident)
                 if any(f[k] <= 0 for k in ('corridor_width_cm','minimum_turn_radius_cm')):
                     raise ValueError('Invalid generator corridor '+ident)
                 if f['minimum_turn_radius_cm'] < f['width_cm']/2 + f['shoulder_cm']:
