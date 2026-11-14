@@ -19,7 +19,8 @@ import zlib
 import unreal
 
 ROOT = pathlib.Path(unreal.Paths.project_dir())
-OUT = ROOT/'Saved/Codex/Phase5Atmosphere'
+# Optional runpy init_globals keep one-factor live tuning runs short and separate.
+OUT = pathlib.Path(globals().get('OUTPUT_DIR', ROOT/'Saved/Codex/Phase5Atmosphere'))
 QA = 'Dustfall_M6_AtmosphereCapture_QA'
 BASE_CASES = [('calm_day', 0, .5, False), ('haze_day', 1, .5, False), ('storm_day', 2, .5, False),
          ('dusk', 1, .75, False), ('midnight_off', 1, 0., False),
@@ -28,6 +29,11 @@ CASES = [(name+suffix, weather, clock, light, heading)
          for name, weather, clock, light in BASE_CASES
          for suffix, heading in [('', 'probes'), ('_horizon', 'horizon')]]
 
+ONLY_CASES = globals().get('ONLY_CASES')
+if ONLY_CASES is not None:
+    CASES = [case for case in CASES if case[0] in ONLY_CASES]
+if not CASES:
+    raise ValueError('ONLY_CASES selected no captures')
 
 def read_png(path):
     """Stdlib PNG decoder: noninterlaced 8-bit RGB/RGBA, all five row filters."""
@@ -82,8 +88,8 @@ def read_png(path):
     return width, height, channels, rows
 
 
-def measure_box(path, camera, rotation, fov, foot, horizon=False):
-    width, height, channels, rows = read_png(path)
+def measure_box(path, camera, rotation, fov, foot, horizon=False, human=False, decoded=None):
+    width, height, channels, rows = decoded if decoded is not None else read_png(path)
     pitch, yaw = math.radians(rotation.pitch), math.radians(rotation.yaw)
     forward = (math.cos(pitch)*math.cos(yaw), math.cos(pitch)*math.sin(yaw), math.sin(pitch))
     right = (-math.sin(yaw), math.cos(yaw), 0.)
@@ -99,27 +105,28 @@ def measure_box(path, camera, rotation, fov, foot, horizon=False):
         return round(width/2+dot(right)*scale), round(height/2-dot(up)*scale)
 
     def patch(point):
+        radius = 1 if human else 3
         x, y = project(point)
         if not (3 <= x < width-3 and 3 <= y < height-3):
             raise ValueError('Patch outside image')
         samples = []
-        for py in range(y-3, y+4):
-            for px in range(x-3, x+4):
+        for py in range(y-radius, y+radius+1):
+            for px in range(x-radius, x+radius+1):
                 rgb = rows[py][px*channels:px*channels+3]
                 # Screenshot is display-referred sRGB; report linear relative luminance.
                 linear = [v/255/12.92 if v/255 <= .04045 else ((v/255+.055)/1.055)**2.4 for v in rgb]
                 samples.append(sum(a*b for a, b in zip(linear, [.2126, .7152, .0722])))
-        return {'center_px': [x, y], 'size_px': 7, 'average_luminance': sum(samples)/len(samples)}
+        return {'center_px': [x, y], 'size_px': 2*radius+1, 'average_luminance': sum(samples)/len(samples)}
 
     # Upper part avoids the sloping ground that obscures the box's lower face.
     # Select the face toward this camera for either +/-X heading. The horizon
     # view uses sky just ABOVE the box's skyline, not adjacent sloping ground.
     face = foot[0] + (300 if camera.x > foot[0] else -300)
-    box = patch([face, foot[1], foot[2]+1000])
-    sky = patch([face, foot[1], foot[2]+1450]) if horizon else patch([face, foot[1]+850, foot[2]+1000])
+    box = patch([foot[0], foot[1], foot[2]+112]) if human else patch([face, foot[1], foot[2]+1000])
+    sky = patch([foot[0], foot[1]+70, foot[2]+112]) if human else (patch([face, foot[1], foot[2]+1450]) if horizon else patch([face, foot[1]+850, foot[2]+1000]))
     return {'box': box, 'adjacent_sky': sky, 'contrast': (sky['average_luminance']-box['average_luminance'])/max(sky['average_luminance'], 1e-8),
-            'reference': 'sky above silhouette skyline in horizon view' if horizon else 'adjacent sky in probe view',
-            'note': 'Projected 7x7 patches, linearized sRGB; visually confirm sky patch is unobstructed.'}
+            'reference': 'adjacent terrain at torso height' if human else ('sky above silhouette skyline in horizon view' if horizon else 'adjacent sky in probe view'),
+            'note': 'Projected patches (3x3 human, 7x7 box), linearized sRGB. Human reference is adjacent background, not sky; contrast is not physical transmission.'}
 
 
 
@@ -146,7 +153,9 @@ def main():
     initial_dirty = dirty_packages()
     report = {'status': 'running', 'method': 'PIE game-view HighResShot 1920x1080',
               'scope': 'Visual evidence only; inspect 15m detail, 150m silhouette, grey night, moon and flashlight. GPU budget unmeasured.',
-              'targets': [], 'captures': [], 'errors': [], 'initial_dirty_packages': initial_dirty}
+              'targets': [], 'captures': [], 'errors': [], 'initial_dirty_packages': initial_dirty,
+              'tuning': {key: str(unreal.load_asset('/Game/Data/DA_Atmosphere_Phase5').get_editor_property(key)) for key in ['fog_max_opacity', 'volumetric_extinction', 'volumetric_fog_distance', 'dust_opacity', 'sheet_opacity_scale', 'ground_dust_opacity', 'haze_fog_color', 'storm_fog_color']},
+              'curve_method': 'Measured display contrast against adjacent terrain. Compare with a matching low-fog reference for contrast retention, not physical transmission. 30m centre-line target omitted because its background is the 150m box.'}
     editor_probes = []
     state = {'stage': 'start', 'since': time.monotonic(), 'index': 0, 'handle': None, 'restored': False, 'slot_changed': False}
     temporary = []
@@ -222,7 +231,7 @@ def main():
         cx, cy = 2500., -4000.
         camera_position = unreal.Vector(cx, cy, ground(cx, cy)+180.)
         report['camera_cm'] = [camera_position.x, camera_position.y, camera_position.z]
-        for distance, angle in [(5., -24.), (10., -8.), (15., 8.), (25., 24.)]:
+        for distance, angle in [(5., -24.), (10., -8.), (15., 8.), (20., -16.), (25., 24.), (40., 16.)]:
             radians = math.radians(angle)
             x, y = cx+distance*100*math.cos(radians), cy+distance*100*math.sin(radians)
             z = ground(x, y)
@@ -356,15 +365,20 @@ def main():
                     capture = {'file': path.name, 'weather': weather, 'time_of_day': clock,
                                                'flashlight': flashlight, 'fog_density': env.get_editor_property('CurrentFogDensity'),
                                                'bytes': path.stat().st_size, 'heading': heading}
+                    fog = env.get_editor_property('FogComponent')
+                    capture['runtime_fog'] = {key: str(fog.get_editor_property(key)) for key in ['fog_density', 'fog_max_opacity', 'volumetric_fog_distance', 'volumetric_fog_extinction_scale', 'volumetric_fog_emissive', 'fog_inscattering_luminance']}
                     manager = unreal.GameplayStatics.get_player_camera_manager(pie, 0)
                     location, rotation = manager.get_camera_location(), manager.get_camera_rotation()
                     capture['camera_cm'] = [location.x, location.y, location.z]
                     capture['rotation'] = [rotation.pitch, rotation.yaw, rotation.roll]
                     try:
+                        decoded = read_png(path)
+                        if heading == 'probes' and name != 'midnight_moon':
+                            capture['human_detail_curve'] = {str(target['horizontal_distance_m']): measure_box(path, location, rotation, manager.get_fov_angle(), target['foot_cm'], human=True, decoded=decoded) for target in report['targets'] if target['kind'] == 'human_1.8m'}
                         if clock == 0. and heading != 'horizon':
                             capture['silhouette_luminance'] = {'skipped': 'Night silhouette acceptance uses the matching horizon view.'}
                         else:
-                            capture['silhouette_luminance'] = measure_box(path, location, rotation, manager.get_fov_angle(), boxes[heading], horizon=heading == 'horizon')
+                            capture['silhouette_luminance'] = measure_box(path, location, rotation, manager.get_fov_angle(), boxes[heading], horizon=heading == 'horizon', decoded=decoded)
                     except (ValueError, OSError, zlib.error, struct.error) as exc:
                         capture['silhouette_luminance'] = {'skipped': str(exc)}
                     report['captures'].append(capture)

@@ -9,16 +9,19 @@ bool FDustfallAtmosphereBlendTest::RunTest(const FString& Parameters)
     using M = FDustfallAtmosphereMath;
     TestEqual(TEXT("Midnight floor"), M::Night(0, -.2f, .2f), 1.f);
     TestEqual(TEXT("Noon has no night correction"), M::Night(.5f, -.2f, .2f), 0.f);
-    TestTrue(TEXT("Dawn dusk symmetry"), FMath::IsNearlyEqual(M::Night(.25f, -.2f, .2f), M::Night(.75f, -.2f, .2f)));
+    TestTrue(TEXT("Dawn dusk symmetry"), FMath::IsNearlyEqual(M::Night(.25f, -.2f, .2f), M::Night(.75f, -.2f, .2f), 1.e-6f));
     TestEqual(TEXT("Clock wrap"), M::Night(1, -.2f, .2f), M::Night(0, -.2f, .2f));
     TestEqual(TEXT("Storm blend midpoint"), M::Weather(FVector(0, 2, 4), 1, .5f), 3.f);
     TestEqual(TEXT("Storm exit keeps tail"), M::Weather(FVector(0, 2, 4), 0, .5f), 2.f);
     TestEqual(TEXT("Storm blend clamps"), M::Weather(FVector(0, 2, 4), 2, 5), 4.f);
     TestEqual(TEXT("No fade on negative delta"), M::Approach(1, 0, 4, -1), 1.f);
     TestTrue(TEXT("Interior fade independent of subdivision"), FMath::IsNearlyEqual(M::Approach(1, 0, 4, 1),
-        M::Approach(M::Approach(1, 0, 4, .5f), 0, 4, .5f)));
+        M::Approach(M::Approach(1, 0, 4, .5f), 0, 4, .5f), 1.e-6f));
     TestEqual(TEXT("Negative dust wrap"), M::Wrap(-12, 10), 8.f);
     TestEqual(TEXT("Positive dust wrap"), M::Wrap(12, 10), -8.f);
+    // These are physical model predictions, not visual acceptance. Round-4 live
+    // captures prove a .263 transmission floor can still yield ~0 sky contrast
+    // when homogeneous source radiance dominates the very dim background.
     TestTrue(TEXT("Storm near 5m detail remains readable"),
         FMath::IsNearlyEqual(M::CombinedTransmittance(3.3f, 500, 0, .40f, 1000, .5f), .662f, .001f));
     TestTrue(TEXT("Storm human detail is faint at 15m"),

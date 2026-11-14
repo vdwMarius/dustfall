@@ -19,6 +19,8 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Fog") FVector VolumetricFogDistance = FVector(6000, 4000, 1000);
     // Shared source radiance. Homogeneous fog makes emissive/extinction constant
     // on every ray; height-dependent dust comes from the terrain-following sheets.
+    // Round 4: fog source stays dust-bright; far silhouettes come from the storm scene
+    // light (DA_Environment StormLightMultiplier 2.0), not from darkening the fog.
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Fog") FLinearColor CalmFogColor = FLinearColor(.26f, .18f, .11f);
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Fog") FLinearColor HazeFogColor = FLinearColor(.30f, .21f, .13f);
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Fog") FLinearColor StormFogColor = FLinearColor(.34f, .24f, .15f);

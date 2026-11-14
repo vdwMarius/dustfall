@@ -7,7 +7,10 @@ Override: Saved/Codex/atmosphere_fx_override.json, object of tuning property nam
 (snake_case); vector/color values are arrays. Optional environment object accepts
 StormFogDensity. The existing atmosphere_override.json is also honored for that
 key, using build_phase3_environment.py's TUNING/override convention. Starting storm
-density is 3.3, with matched-source 10m volumetrics and a .263 far transmission floor.
+density is 3.3, with matched-source 10m volumetrics and a .263 predicted far
+transmission floor. Far storm silhouettes depend on DA_Environment_Phase2
+StormLightMultiplier (2.0), not on darkening the fog source.
+Do not treat the prediction table as capture acceptance.
 Only that DA field changes; the Phase3 builder's graph/lighting passes do not run.
 Material graph constants describe shape/algorithm; runtime tuning is in the DA.
 
@@ -282,7 +285,7 @@ def expected_transmittance(densities, values):
     return {'distances_m': distances, 'reference': 'horizontal at fog reference height, centre ray; predicted transmission, not measured contrast',
             'values': rows,
             'engine': 'HeightFogCommon.ush GetExponentialHeightFog/CalculateHeightFog/CombineVolumetricFog: analytic excludes V/cos(angle); StartDistance is an exclusion, not a blend. VolumetricFog.usf MaterialSetup/FinalIntegration: sigma=.5*rho/1000*ext, Cv=(j/sigma)*(1-Tv). Homogeneous medium, black albedo and j=C*sigma match source radiance: Cv+Tv*Ca=C*(1-Tv*Ta). NearFadeInDistance is camera-side only; no far crossfade. SceneCore.cpp divides legacy emissive settings by 10000, so component setting=10000*C*sigma. Optional read-only r.SupportExpFogMatchesVolumetricFog=1 requires effective ext=1 for source matching; table assumes project default 0.',
-            'contrast_target': 'Lead measured ~4%; aim ~8%. Previous C++ .96/.51 floor=.101; baked .5/.40 floor=.263. Predicted transmission is not measured contrast; capture required.',
+            'contrast_target': 'Storm horizon >=.06; haze >=.05, while preserving near detail, calm and night. The .263 predicted storm floor did not guarantee silhouettes: measured original horizon contrast ~0. Source radiance swamps the dim sky; after reducing source, bright dust becomes a second veil. See Saved/Codex/AtmoR4_*/report.json. No acceptance inferred from transmission.',
             'seam_option': 'Both fog systems, matched emissive source. Height falloff and second density zero; directional/sky extra inscattering off. Flashlight cone approximated on dust geometry; no physical volumetric shafts.'}
 
 

@@ -43,7 +43,6 @@ private:
     UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> SheetMID;
     UPROPERTY(Transient) TObjectPtr<UMaterialInstanceDynamic> GroundMID;
     UPROPERTY(Transient) TObjectPtr<UClass> LandscapeClass;
-    TArray<TWeakObjectPtr<AActor>> GroundTraceIgnoredActors;
     TArray<FVector> Positions;
     TArray<float> Variations;
     TArray<FVector2D> Sizes;

@@ -124,8 +124,6 @@ void ADustfallAtmosphereFX::BeginPlay()
     if (!Tuning) { SetActorTickEnabled(false); return; }
     FindDirectors();
     LandscapeClass = LoadClass<AActor>(nullptr, TEXT("/Script/Landscape.LandscapeProxy"));
-    for (TActorIterator<AActor> It(GetWorld()); It; ++It)
-        if (!LandscapeClass || !It->IsA(LandscapeClass)) GroundTraceIgnoredActors.Add(*It);
     const auto& T = *Tuning;
     Moon->SetLightColor(T.MoonColor);
     Moon->SetLightSourceAngle(T.MoonDiscDegrees);
@@ -221,9 +219,13 @@ void ADustfallAtmosphereFX::Tick(float DeltaSeconds)
         // calm rho=.3 V=60m ext=.2 cap=.82: .985/.970/.956/.928/.228
         // haze rho=.6 V=40m ext=.3 cap=.86: .956/.914/.874/.799/.098
         // storm rho=3.3 V=10m ext=.5 cap=.40: .662/.438/.263/.263/.263
-        // Previous C++ .96/.51 split gave .101 far; tuned .5/.40 gives .263,
-        // aiming above the measured 4% toward 8% after matching source radiance.
-        // Actual contrast depends on sky/exposure/dust: capture, do not infer a pass.
+        // Round 4 LIVE isolation: original storm horizon contrast ~0; dust off
+        // ~0; extinction off .010 (and a seam); extinction=0/cap=.01 gives .648.
+        // Haze source x.2 gives .076 horizon contrast (forward view -.117).
+        // Storm source x.075/dust x.1 gives .084 but turns daytime storms near black:
+        // REJECTED. Lead fix: keep the source, raise StormLightMultiplier .52 -> 2.0 so
+        // the lit scene is no longer far dimmer than the fog (captures: figures clear
+        // at 5/10 m, faint at 15-25 m, ridges and the 150 m box as faint silhouettes).
         Fog->SetFogMaxOpacity(FMath::Clamp(Math::Weather(T.FogMaxOpacity, Weather, Storm), 0.f, 1.f));
         Fog->SetStartDistance(Math::Weather(T.FogStartDistance, Weather, Storm));
         Fog->SetVolumetricFogDistance(Math::Weather(T.VolumetricFogDistance, Weather, Storm));
@@ -343,14 +345,12 @@ void ADustfallAtmosphereFX::Tick(float DeltaSeconds)
         Sheets->UpdateInstanceTransform(Index, FTransform(Facing, Camera->GetCameraLocation() + View.RotateVector(Offset),
             FVector(T.SheetSize / 100.f, T.SheetSize / 100.f, 1)), true, false, true);
     }
-    // Trace landscape below the camera, ignoring authored rocks/roofs so they
-    // cannot block the terrain query. Tangent planes
+    // Object multi-trace returns all matching static objects; select landscape
+    // hits below without a world-size actor ignore list. Tangent planes
     // within 1.5m of the terrain under the camera. No saved world modifications.
     FHitResult Ground;
     FCollisionQueryParams Query(SCENE_QUERY_STAT(AtmosphereGround), false, this);
     Query.AddIgnoredActor(UGameplayStatics::GetPlayerPawn(this, 0));
-    for (const TWeakObjectPtr<AActor>& Ignored : GroundTraceIgnoredActors)
-        if (Ignored.IsValid()) Query.AddIgnoredActor(Ignored.Get());
     const FVector CameraLocation = Camera->GetCameraLocation();
     TArray<FHitResult> Hits;
     GetWorld()->LineTraceMultiByObjectType(Hits, CameraLocation,

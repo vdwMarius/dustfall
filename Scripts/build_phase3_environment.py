@@ -10,7 +10,7 @@ import unreal
 ROOT = pathlib.Path(unreal.Paths.project_dir())
 TUNING = {'CalmFogDensity': .30, 'HazeFogDensity': .60, 'StormFogDensity': 2.2,
           'SunIntensity': 42., 'DaySkyIntensity': .95, 'NightSkyIntensity': .0005,
-          'StormLightMultiplier': .52, 'WeatherBlendSpeed': .2,
+          'StormLightMultiplier': 2.0, 'WeatherBlendSpeed': .2,
           'FogRed': .46, 'FogGreen': .23, 'FogBlue': .09,
           'WindBaseVolume': .25, 'WindStormVolume': .8}
 DAY_EXPOSURE_EV100 = 0.
