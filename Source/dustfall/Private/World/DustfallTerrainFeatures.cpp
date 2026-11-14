@@ -165,7 +165,7 @@ FString DustfallAuthorTerrainV2(AActor* Actor, const FString& BaselineFile, cons
     if (!Landscape || !Landscape->GetWorld() || Landscape->GetWorld()->IsGameWorld()) return Fail(TEXT("Requires editor Landscape, PIE stopped"));
     FGrid G; ULandscapeInfo* Info=Landscape->GetLandscapeInfo();
     // Baseline extent is authoritative even before World Partition cells are loaded.
-    // No edit interface is constructed on the validation path.
+    // Read-only edit interfaces below include the visible additive layer stack.
     TArray<uint8> Bytes;
     if (!FFileHelper::LoadFileToArray(Bytes,*BaselineFile) || Bytes.Num()<16) return Fail(TEXT("Exact baseline missing"));
     int32 Header[4]; FMemory::Memcpy(Header,Bytes.GetData(),16);
@@ -212,19 +212,67 @@ FString DustfallAuthorTerrainV2(AActor* Actor, const FString& BaselineFile, cons
     if (Bytes.Num()!=16+G.W*G.H*2) return Fail(TEXT("Baseline size does not match its extent"));
     TArray<uint16> Baseline, Output;
     Baseline.SetNumUninitialized(G.W*G.H); FMemory::Memcpy(Baseline.GetData(),Bytes.GetData()+16,Baseline.Num()*2);
+    // The historical backup is layer 0, NOT the merged surface. In particular,
+    // Flat Middle contributes spatially varying offsets (including +1240.625cm
+    // near home). Solve in merged world space, then invert that composition
+    // when writing layer 0. Upper layers remain untouched and reruns cannot drift.
+    int32 ReadX1=0,ReadY1=0,ReadX2=0,ReadY2=0;
+    if (!Info->GetLandscapeExtent(ReadX1,ReadY1,ReadX2,ReadY2) ||
+        ReadX1!=G.X1 || ReadY1!=G.Y1 || ReadX2!=G.X2 || ReadY2!=G.Y2)
+        return Fail(TEXT("Load full landscape extent before merged-surface validation (no terrain has been modified)"));
+    TArray<int32> UpperOffset; UpperOffset.Init(0,Baseline.Num());
+    TArray<Value> LayerReport;
+    for (const FLandscapeLayer& Entry:Landscape->GetLayersConst())
+    {
+        const ULandscapeEditLayerBase* EditLayer=Entry.EditLayer;
+        if (!EditLayer) return Fail(TEXT("Missing edit layer"));
+        Object L=MakeShared<FJsonObject>();
+        L->SetStringField(TEXT("name"),EditLayer->GetName().ToString());
+        L->SetStringField(TEXT("class"),EditLayer->GetClass()->GetName());
+        L->SetBoolField(TEXT("visible"),EditLayer->IsVisible());
+        L->SetNumberField(TEXT("height_alpha"),EditLayer->GetAlphaForTargetType(ELandscapeToolTargetType::Heightmap));
+        LayerReport.Add(Obj(L));
+        // Refuse unknown composition rather than validate a fictitious surface.
+        if (EditLayer->GetClass()!=ULandscapeEditLayer::StaticClass() || !Entry.Brushes.IsEmpty() ||
+            (EditLayer->IsVisible() && EditLayer->GetAlphaForTargetType(ELandscapeToolTargetType::Heightmap)!=1.f))
+            return Fail(TEXT("Merged terrain authoring requires standard additive layers with unit height alpha and no brushes"));
+        if (&Entry==Layer)
+        {
+            if (!EditLayer->IsVisible()) return Fail(TEXT("Base landscape layer must be visible"));
+            continue;
+        }
+        if (!EditLayer->IsVisible()) continue;
+        FLandscapeEditDataInterface ReadLayer(Info,EditLayer->GetGuid());
+        TSet<ULandscapeComponent*> ReadComponents;
+        ReadLayer.GetComponentsInRegion(G.X1,G.Y1,G.X2,G.Y2,&ReadComponents);
+        int64 ReadQuads=0;
+        for (const ULandscapeComponent* C:ReadComponents)
+        {
+            ReadQuads+=int64(C->ComponentSizeQuads)*C->ComponentSizeQuads;
+            if (!C->GetLayerData(EditLayer->GetGuid())) return Fail(TEXT("Missing upper-layer component data"));
+        }
+        if (ReadQuads!=int64(G.W-1)*(G.H-1)) return Fail(TEXT("Load all landscape components before validation"));
+        TArray<uint16> Heights; Heights.SetNumUninitialized(Baseline.Num());
+        ReadLayer.GetHeightDataFast(G.X1,G.Y1,G.X2,G.Y2,Heights.GetData(),0);
+        for (int32 I=0;I<Heights.Num();++I) UpperOffset[I]+=int32(Heights[I])-32768;
+    }
+    Report->SetArrayField(TEXT("edit_layers"),LayerReport);
+    Report->SetStringField(TEXT("validation_surface"),TEXT("final merged heightfield; inverse additive composition written to layer 0"));
     G.Base.SetNumUninitialized(Baseline.Num()); G.Z.SetNumUninitialized(Baseline.Num());
     for (int32 Y=G.Y1; Y<=G.Y2; ++Y) for (int32 X=G.X1; X<=G.X2; ++X)
     {
         const int32 I=(Y-G.Y1)*G.W+X-G.X1; const FVector2D P=G.World(X,Y);
-        G.Base[I]=(double(Baseline[I])-32768.)*Scale.Z/128.+G.Transform.GetLocation().Z;
+        const int32 MergedBase=int32(Baseline[I])+UpperOffset[I];
+        if (MergedBase<0 || MergedBase>65535) return Fail(TEXT("Merged baseline clips uint16 height range"));
+        G.Base[I]=(double(MergedBase)-32768.)*Scale.Z/128.+G.Transform.GetLocation().Z;
         double Delta=0;
         for (const FFeature& F:Features) if (F.Stage!=TEXT("path")) Delta+=Relief(F,P);
         G.Z[I]=G.Base[I]+Delta*Guard(P);
     }
     // Canonical order also makes floating point accumulation reproducible after
     // reordering the input JSON. No path may read another path's raster output.
-    // Every feature is evaluated, even if another feature fails. No landscape edit
-    // interface or Modify/dirty call exists until the complete report passes.
+    // Every feature is evaluated, even if another feature fails. Read-only layer
+    // access above never calls Modify; no writes occur until the report passes.
     const double Step=N(Sampling,TEXT("path_step_cm"));
     const double RasterMargin=FMath::Sqrt(Scale.X*Scale.X+Scale.Y*Scale.Y);
     for (FFeature& F:Features) if (F.Stage==TEXT("path"))
@@ -414,10 +462,11 @@ FString DustfallAuthorTerrainV2(AActor* Actor, const FString& BaselineFile, cons
     for (int32 Y=G.Y1; Y<=G.Y2; ++Y) for (int32 X=G.X1; X<=G.X2; ++X)
     {
         const int32 I=(Y-G.Y1)*G.W+X-G.X1; const FVector2D P=G.World(X,Y);
-        const double Encoded=(G.Z[I]-G.Transform.GetLocation().Z)*128./Scale.Z+32768.;
-        if (!FMath::IsFinite(Encoded) || Encoded<0 || Encoded>65535) ++Clipped;
+        const double MergedEncoded=(G.Z[I]-G.Transform.GetLocation().Z)*128./Scale.Z+32768.;
+        const double Encoded=MergedEncoded-UpperOffset[I];
+        if (!FMath::IsFinite(Encoded) || Encoded<0 || Encoded>65535 || MergedEncoded<0 || MergedEncoded>65535) ++Clipped;
         Output[I]=uint16(FMath::RoundToInt(FMath::IsFinite(Encoded)?FMath::Clamp(Encoded,0.,65535.):32768.));
-        G.Z[I]=(double(Output[I])-32768.)*Scale.Z/128.+G.Transform.GetLocation().Z;
+        G.Z[I]=(double(Output[I])+UpperOffset[I]-32768.)*Scale.Z/128.+G.Transform.GetLocation().Z;
         MinDelta=FMath::Min(MinDelta,G.Z[I]-G.Base[I]); MaxDelta=FMath::Max(MaxDelta,G.Z[I]-G.Base[I]);
         if (Output[I]!=Baseline[I]) ++Changed;
         if (Output[I]!=Baseline[I])
@@ -713,6 +762,13 @@ FString DustfallAuthorTerrainV2(AActor* Actor, const FString& BaselineFile, cons
     if (LoadedQuads!=int64(G.W-1)*(G.H-1)) return Fail(TEXT("Missing landscape components; load all authoring cells"));
     TArray<uint16> Current; Current.SetNumUninitialized(Output.Num());
     Edit.GetHeightDataFast(G.X1,G.Y1,G.X2,G.Y2,Current.GetData(),0);
+    // Do not replace protected saved ground with a mismatched historical backup.
+    for (int32 Y=G.Y1;Y<=G.Y2;++Y) for (int32 X=G.X1;X<=G.X2;++X)
+    {
+        const int32 I=(Y-G.Y1)*G.W+X-G.X1;
+        if (Guard(G.World(X,Y))==0 && Output[I]!=Current[I])
+            return Fail(TEXT("Protected saved ground differs from historical baseline; landscape untouched"));
+    }
     int32 ChangedCurrent=0;
     for (int32 Y=G.Y1; Y<=G.Y2; ++Y) for (int32 X=G.X1; X<=G.X2; ++X)
     {
@@ -728,6 +784,18 @@ FString DustfallAuthorTerrainV2(AActor* Actor, const FString& BaselineFile, cons
     Report->SetNumberField(TEXT("changed_from_current_vertex_count"),ChangedCurrent);
     IFileManager::Get().MakeDirectory(*MaskDirectory,true);
     if (!Save(PathReport,FPaths::Combine(MaskDirectory,TEXT("polylines.json")))) return Fail(TEXT("Cannot write path polylines"));
+    // Exact final merged vertices, same int32 extent + uint16 layout as baseline.
+    // Python checks routes, cliff probes and protected points before any saving.
+    TArray<uint8> FinalBytes; FinalBytes.SetNumUninitialized(16+Output.Num()*2);
+    FMemory::Memcpy(FinalBytes.GetData(),Header,16);
+    for (int32 I=0;I<Output.Num();++I)
+    {
+        const uint16 H=uint16(int32(Output[I])+UpperOffset[I]);
+        FMemory::Memcpy(FinalBytes.GetData()+16+I*2,&H,2);
+    }
+    const FString FinalFile=FPaths::Combine(MaskDirectory,TEXT("final_surface.bin"));
+    if (!FFileHelper::SaveArrayToFile(FinalBytes,*FinalFile)) return Fail(TEXT("Cannot write final merged heightfield"));
+    Report->SetStringField(TEXT("final_surface_file"),FinalFile);
     if (!FFileHelper::SaveArrayToFile(PathMask,*FPaths::Combine(MaskDirectory,TEXT("paths.raw"))) || !FFileHelper::SaveArrayToFile(CliffMask,*FPaths::Combine(MaskDirectory,TEXT("cliffs.raw")))) return Fail(TEXT("Cannot write masks"));
     Report->SetArrayField(TEXT("mask_world_bounds_cm"),{Number(Min.X),Number(Min.Y),Number(Max.X),Number(Max.Y)});
     Report->SetNumberField(TEXT("mask_size"),MaskSize); Report->SetStringField(TEXT("mask_directory"),MaskDirectory);

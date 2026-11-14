@@ -417,9 +417,13 @@ class RealRasterReplicaTests(unittest.TestCase):
         before=real_raster_replica(False)
         after=real_raster_replica(True)
         self.assertEqual(len(after),11)
+        # The Lead's report can be from either side of the round-4 fix.
+        # These legacy replicas use layer 0; they cannot validate merged terrain.
+        reference=after if all(f.get('valid',True) for f in report['features']) else before
         for f in report['features']:
             if f['id'] not in before:continue
-            metrics=before[f['id']]
+            if report.get('validation_surface'):continue
+            metrics=reference[f['id']]
             for replica,native in [('grade','maximum_grade'),('cross_slope','maximum_cross_slope'),
                                    ('profile_error_cm','maximum_profile_error_cm')]:
                 # Allow sub-micron differences in native versus Python arc accumulation.
@@ -578,7 +582,7 @@ class SchemaTests(unittest.TestCase):
 
 
 class DryRunOrderingTests(unittest.TestCase):
-    def exercise(self, passes, validate_only):
+    def exercise(self, passes, validate_only, merged=True):
         with tempfile.TemporaryDirectory() as folder:
             root=pathlib.Path(folder)
             (root/'Scripts/Data').mkdir(parents=True)
@@ -591,6 +595,7 @@ class DryRunOrderingTests(unittest.TestCase):
             def validate(actor, baseline, features, report):
                 events.append('validate')
                 payload=dict(status='validation_passed' if passes else 'failed',
+                             validation_surface='final merged heightfield; inverse additive composition written to layer 0' if merged else None,
                              features=[dict(id='wreck_ruin',required_grade=.11),dict(id='shelf_notch',generated=True)],
                              problems=[] if passes else [dict(id='a',message='one'),dict(id='b',message='two')],
                              paths=[dict(id='shelf_notch',polyline_cm=[[0,0,6000],[10000,0,0]])],clipped_vertices=0)
@@ -627,6 +632,40 @@ class DryRunOrderingTests(unittest.TestCase):
 
     def test_passing_validate_only_never_loads_or_authors(self):
         self.assertEqual(self.exercise(True,True)['status'],'validation_passed')
+
+    def test_old_native_build_cannot_apply_even_when_legacy_validation_passes(self):
+        with self.assertRaisesRegex(RuntimeError,'needs Lead rebuild'):
+            self.exercise(True,False,merged=False)
+
+
+class CollisionAcceptanceTests(unittest.TestCase):
+    def test_timeout_evidence_keeps_missing_hits_and_worst_proxy(self):
+        def trace(x,y):
+            if x == 2: raise RuntimeError('missing landscape')
+            return 0,'proxy_'+str(x)
+        rows=BUILDER.collision_diagnostics([('route',1,0,-1240.625),('missing',2,0,0)],trace)
+        self.assertIsNone(rows[0]['actual_z_cm'])
+        self.assertEqual(rows[1]['proxy'],'proxy_1')
+        self.assertEqual(rows[1]['xy_cm'],[1,0])
+        self.assertEqual(rows[1]['expected_z_cm'],-1240.625)
+        self.assertFalse(BUILDER.collision_ready(rows,15))
+
+    def test_protection_is_stricter_than_path_tolerance(self):
+        rows=BUILDER.collision_diagnostics([('home',0,0,0)],lambda x,y:(1,'proxy'))
+        self.assertTrue(BUILDER.collision_ready(rows,15))
+        self.assertFalse(BUILDER.collision_ready(rows,100/128))
+
+    def test_final_surface_samples_vertices_edges_and_both_triangles(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=pathlib.Path(folder)/'surface.bin'
+            path.write_bytes(struct.pack('<4i4H',0,0,1,1,32768,32896,33024,33280))
+            sample=BUILDER.load_final_surface(dict(final_surface_file=str(path),
+                landscape_location_cm=[-100,-100,100],landscape_scale=[100,100,100]))
+            self.assertEqual(sample(-100,-100),100)
+            self.assertEqual(sample(0,0),500)
+            self.assertEqual(sample(-25,-75),250)
+            self.assertEqual(sample(-75,-25),300)
+            with self.assertRaises(ValueError): sample(1,0)
 
 
 if __name__ == '__main__':

@@ -7,15 +7,56 @@ Outputs are asynchronous: wait for Docs/Phase5_TerrainResults.json status.
 Schema validation/resolution is pure Python and may be reviewed without Unreal.
 """
 import copy
+import array
 import hashlib
 import json
 import math
 import pathlib
 import runpy
+import struct
 import time
 import traceback
 
 VALIDATE_ONLY = globals().get('VALIDATE_ONLY', True)
+
+
+def collision_diagnostics(points, trace):
+    """Retain locations and hit proxies, including missing collision, on failure."""
+    rows = []
+    for name, x, y, expected in points:
+        try:
+            actual, proxy = trace(x, y)
+            error = abs(actual-expected)
+        except Exception as exc:
+            actual, proxy, error = None, str(exc), None
+        rows.append(dict(id=name, xy_cm=[x,y], expected_z_cm=expected,
+                         actual_z_cm=actual, proxy=proxy, error_cm=error))
+    return sorted(rows, key=lambda r: float('inf') if r['error_cm'] is None else r['error_cm'], reverse=True)
+
+
+def collision_ready(rows, tolerance):
+    return all(r['error_cm'] is not None and r['error_cm'] <= tolerance for r in rows)
+
+
+def load_final_surface(native):
+    """Sample the exact merged vertices with the collision heightfield's triangles."""
+    raw = pathlib.Path(native['final_surface_file']).read_bytes()
+    x1,y1,x2,y2 = struct.unpack_from('<4i',raw)
+    w,h = x2-x1+1,y2-y1+1
+    heights = array.array('H'); heights.frombytes(raw[16:])
+    if len(heights) != w*h: raise ValueError('Invalid final surface size')
+    origin,scale = native['landscape_location_cm'],native['landscape_scale']
+    def sample(x,y):
+        gx,gy = (x-origin[0])/scale[0]-x1,(y-origin[1])/scale[1]-y1
+        if not (0 <= gx <= w-1 and 0 <= gy <= h-1):
+            raise ValueError('Probe outside final heightfield: '+str((x,y)))
+        ix,iy = min(int(gx),w-2),min(int(gy),h-2)
+        u,v = gx-ix,gy-iy
+        a,b,c,d = [heights[k] for k in (iy*w+ix,iy*w+ix+1,(iy+1)*w+ix,(iy+1)*w+ix+1)]
+        # Chaos HeightField.cpp: triangles (0,1,3) and (0,3,2).
+        z = a+u*(b-a)+v*(d-b) if u >= v else a+u*(d-c)+v*(c-a)
+        return (z-32768)*scale[2]/128+origin[2]
+    return sample
 
 
 def rounded_line(line, radius=1200.0):
@@ -190,13 +231,20 @@ def main():
         report.update(validation=validation, native_result=status, validate_only=VALIDATE_ONLY)
         after_validation={p.get_path_name() for p in dirty()}
         report['validation_editor_stayed_clean'] = after_validation == before
-        if after_validation != before:
-            raise RuntimeError('Validation changed dirty package set; stopping before authoring')
+        # Reading the upper edit layer (merged-surface validation) marks the landscape
+        # proxy packages dirty without changing them. Tolerate ONLY those packages;
+        # after a validate-only run restart the editor without saving to discard them.
+        newly_dirty = sorted(after_validation - before)
+        report['validation_newly_dirty_packages'] = len(newly_dirty)
+        if any('/__ExternalActors__/World/Maps/L_Dustfall_Foundation/' not in p for p in newly_dirty):
+            raise RuntimeError('Validation dirtied non-landscape packages; stopping before authoring: '+str(newly_dirty[:5]))
         if not status.startswith('OK'):
             report.update(status='validation_failed', native=validation)
             write()
             unreal.log_error(status)
             return
+        if validation.get('validation_surface') != 'final merged heightfield; inverse additive composition written to layer 0':
+            raise RuntimeError('Native terrain code needs Lead rebuild: dry run did not validate final merged surface')
         if VALIDATE_ONLY:
             report.update(status='validation_passed', native=validation)
             write()
@@ -208,12 +256,25 @@ def main():
         world = unreal.EditorLevelLibrary.get_editor_world()
         ignore = [a for a in current if not isinstance(a,unreal.LandscapeProxy)]
         breaker = unreal.get_default_object(unreal.GameplayStatics.static_class())
-        def trace(x,y):
+        def trace_hit(x,y):
             hit = unreal.SystemLibrary.line_trace_single(world,unreal.Vector(x,y,100000),unreal.Vector(x,y,-100000),
                         unreal.TraceTypeQuery.TRACE_TYPE_QUERY1,False,ignore,unreal.DrawDebugTrace.NONE,True)
             parts = breaker.call_method('BreakHitResult',(hit,))
             if not parts[0]: raise RuntimeError('Landscape collision missing at '+str((x,y)))
-            return parts[5].z
+            if not isinstance(parts[9],unreal.LandscapeProxy):
+                raise RuntimeError('Trace hit non-landscape actor')
+            return parts[5].z,parts[9].get_path_name()
+        def trace(x,y): return trace_hit(x,y)[0]
+        protected=[]
+        for i,disc in enumerate(data['resolved']['discs_cm']):
+            protected.append(('protected_disc_'+str(i),*disc[:2],trace(*disc[:2])))
+        for key,line in routes.items():
+            for a,b in zip(line,line[1:]):
+                count=max(1,math.ceil(math.dist(a,b)/1000))
+                for i in range(count+1):
+                    x,y=[a[k]+(b[k]-a[k])*i/count for k in range(2)]
+                    protected.append(('protected_route_'+key,x,y,trace(x,y)))
+        report['protected_before_apply']=[dict(id=n,xy_cm=[x,y],collision_z_cm=z) for n,x,y,z in protected]
         # Reuse Phase3's tag, footprint seating and stake offsets. Do not call
         # dress_geology(): it destroys/rebuilds all formations and creates assets.
         phase3 = runpy.run_path(str(root/'Scripts/build_phase3_terrain.py'))
@@ -229,17 +290,47 @@ def main():
             raise RuntimeError(status)
         report.update(status='waiting_for_collision',baseline_sha256=hashlib.sha256(baseline.read_bytes()).hexdigest())
         state=dict(start=time.monotonic(),handle=None,last_poll=0)
+        native=json.loads(native_file.read_text())
+        surface=load_final_surface(native)
+        paths=json.loads((root/'Saved/Codex/TerrainMasks/polylines.json').read_text())['paths']
+        checks=[]
+        for line in paths:
+            pts=line['polyline_cm']
+            for i in sorted(set(range(0,len(pts),10))|{len(pts)-1}):
+                p=pts[i]; checks.append((line['id'],*p[:2],p[2]))
+        # All route and cliff probes are also acceptance gates, before reseating.
+        checks.extend((n,x,y,surface(x,y)) for n,x,y,z in protected)
+        bounds=native['mask_world_bounds_cm']
+        for f in data['features']:
+            if f['type'] not in ('canyon','escarpment'): continue
+            for a,b in zip(f['line_cm'],f['line_cm'][1:]):
+                length=math.dist(a,b);normal=[-(b[1]-a[1])/length,(b[0]-a[0])/length]
+                count=max(1,math.ceil(length/1000))
+                offsets=[0,-max(f['rim_width_cm'])/2,max(f['rim_width_cm'])/2] if f['type']=='canyon' else [f['high_side']*f['face_width_cm'],-f['high_side']*f['talus_width_cm']]
+                for i in range(count+1):
+                    for offset in offsets:
+                        x,y=[a[k]+(b[k]-a[k])*i/count+normal[k]*offset for k in range(2)]
+                        if bounds[0]<=x<=bounds[2] and bounds[1]<=y<=bounds[3]:
+                            checks.append((f['id'],x,y,surface(x,y)))
         def finish_tick(delta):
             try:
                 if time.monotonic()-state['start'] < 3 or time.monotonic()-state['last_poll'] < .5: return
                 state['last_poll']=time.monotonic()
-                if time.monotonic()-state['start'] > 90: raise RuntimeError('Landscape collision update timed out')
-                native=json.loads(native_file.read_text())
-                paths=json.loads((root/'Saved/Codex/TerrainMasks/polylines.json').read_text())['paths']
                 # Poll actual collision against output heights before reseating/saving.
-                errors=[abs(trace(*p[:2])-p[2]) for line in paths for p in line['polyline_cm'][::10]]
-                if errors and max(errors) > 15:
-                    report['collision_pending_max_error_cm']=max(errors);write();return
+                rows=collision_diagnostics(checks,trace_hit)
+                protected_rows=collision_diagnostics(protected,trace_hit)
+                elapsed=time.monotonic()-state['start']
+                report.update(collision_elapsed_seconds=elapsed,collision_checked_points=len(rows),
+                              collision_pending_max_error_cm=rows[0]['error_cm'] if rows else 0,
+                              collision_worst_points=rows[:20],protected_worst_points=protected_rows[:20])
+                ready=collision_ready(rows,15) and collision_ready(protected_rows,native['height_quantisation_cm'])
+                if not ready:
+                    write()
+                    if elapsed>90:
+                        raise RuntimeError('Landscape collision/protection verification timed out: '+json.dumps(dict(worst=rows[:10],protected=protected_rows[:10])))
+                    unreal.log('Terrain collision %.1fs: %d probes; worst=%s; protected worst=%s' % (elapsed,len(rows),rows[:1],protected_rows[:1]))
+                    return
+                report['protected_collision_verified']=True
                 moved=[]
                 for a,loc,old_ground in geology:
                     ground=trace(loc.x,loc.y)
@@ -287,13 +378,15 @@ def main():
                                 if lo_x<=x<=hi_x and lo_y<=y<=hi_y: probe(f['id'],x,y)
                 cells={a.get_actor_label():a for a in current if a.get_actor_label().startswith('P3_PCGCell_')}
                 changed=['P3_PCGCell_%d_%d'%tuple(v) for v in native['changed_pcg_grid_cells']]
-                report.update(status='complete',native=native,reseated_actors=moved,collision_probes=probes,
+                report.update(status='saving',native=native,reseated_actors=moved,collision_probes=probes,
                               paths=paths,changed_pcg_cells=changed,missing_pcg_cells=[k for k in changed if k not in cells],
                               acceptance='Authoring/collision sampling only; Lead must inspect captures and playtest descents/fall cache')
                 packages=[p for p in dirty() if p.get_path_name() not in before and 'L_Dustfall_Foundation' in p.get_path_name()]
                 if not saving.save_packages(packages,True): raise RuntimeError('Failed saving terrain/map/external actor or component packages')
                 native['status']='applied_collision_verified'
                 report['saved_packages']=[p.get_path_name() for p in packages]
+                report['saved_package_count']=len(packages)
+                report['status']='complete'
                 unreal.unregister_slate_post_tick_callback(state['handle']);unreal._dustfall_phase5_terrain_handle=None
                 write()
             except Exception:
