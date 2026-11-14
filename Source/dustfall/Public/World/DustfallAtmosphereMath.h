@@ -38,6 +38,23 @@ struct FDustfallAtmosphereMath
         const float Near = FMath::Exp(-Density / 1000.f * .5f * Extinction * NearDistance);
         return Near * HorizontalTransmittance(Density, DistanceCM, FMath::Max(StartCM, VolumetricDistanceCM), MaxOpacity);
     }
+    static float StreakLength(float Speed, float ReferenceSpeed, float Minimum)
+    {
+        return FMath::Max(Minimum, FMath::Max(0.f, Speed) / FMath::Max(1.f, ReferenceSpeed));
+    }
+    static float GroundHeightFade(float Height, float MaximumHeight)
+    {
+        return 1.f - Smooth(0.f, FMath::Max(1.f, MaximumHeight), Height);
+    }
+    static float EmissiveSetting(float Density, float Extinction)
+    {
+        // SceneCore.cpp divides this artist-facing setting by 10000.
+        return 5.f * Density * Extinction;
+    }
+    static float MatchedRadiance(float Source, float NearT, float FarT)
+    {
+        return Source * (1.f - NearT) + NearT * Source * (1.f - FarT);
+    }
     static float SheetEdge(float U, float V)
     {
         // Same compact support as material: radius .42 leaves an 8% zero border.
