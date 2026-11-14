@@ -30,6 +30,8 @@ struct DUSTFALL_API FDustfallTerrainMath
     // Continuous normal coordinates through bends; endpoint profiles extrapolate
     // into raster support instead of becoming flat caps at oblique endpoints.
     static FProjection ProjectTread(const FVector2D& Point, const TArray<FVector2D>& Line);
+    // Endpoint extrapolation supplies raster/shoulder support, never infinite rays.
+    static bool IsTreadArcSupported(double Arc, double Total, double EndpointSupport);
     // Exact arc intervals in disc/route capsule cores (including sub-sample grazes).
     static TArray<FVector2D> CoreIntervals(const TArray<FVector2D>& Line,
         const TArray<FVector>& Discs, const TArray<TArray<FVector2D>>& Routes, double RouteRadius);

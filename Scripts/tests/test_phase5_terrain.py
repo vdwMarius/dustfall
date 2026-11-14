@@ -288,6 +288,150 @@ def pinned_profile(points, pins, limit, transition, sink_depth=0):
     return z,sample
 
 
+def real_raster_replica(bound_extensions=True):
+    """Sparse native carving replica using real baseline and unchanged report geometry.
+
+    Recreates raster-sampled anchors and generated hairpins; reuses exact reported
+    guard/junction intervals. Only evaluates vertices supporting traversal probes.
+    """
+    from functools import lru_cache
+    _, baseline, data, report = real_data_diagnostics()
+    features = sorted(data['features'], key=lambda f: f['id'])
+    sampling, protection = data['sampling'], data['protection']
+    step = sampling['path_step_cm']
+    sx, sy, sz = report['landscape_scale']
+    ox, oy, oz = report['landscape_location_cm']
+    quantum = sz/128
+    margin = math.hypot(sx, sy)
+
+    def guard(p):
+        return min([1]+[smooth(d[2], d[2]+protection['disc_blend_cm'], math.dist(p,d[:2]))
+                        for d in data['resolved']['discs_cm']]+
+                       [smooth(protection['route_inner_cm'],protection['route_outer_cm'],project(p,r['line_cm'])[0])
+                        for r in data['resolved']['routes']])
+
+    @lru_cache(None)
+    def relief_vertex(x,y):
+        p=(ox+x*sx,oy+y*sy)
+        return baseline(p)+oz+anchor_relief(p,features)*guard(p)
+
+    def interpolate(p, vertex):
+        x,y=(p[0]-ox)/sx,(p[1]-oy)/sy
+        ix,iy=math.floor(x),math.floor(y);u,v=x-ix,y-iy
+        return sum((u if dx else 1-u)*(v if dy else 1-v)*vertex(ix+dx,iy+dy)
+                   for dx in (0,1) for dy in (0,1))
+
+    relief = lambda p: interpolate(p, relief_vertex)
+    paths=[]
+    for measured in report['features']:
+        if 'polyline_cm' not in measured: continue
+        f=copy.deepcopy(next(f for f in features if f['id']==measured['id']))
+        line=f['line_cm'];run=sum(math.dist(a,b) for a,b in zip(line,line[1:]))
+        drop=relief(tuple(line[0]))-relief(tuple(line[-1]))
+        support=f['width_cm']/2+f['shoulder_cm']+2*margin
+        required=abs(drop)/(f['max_grade']*sampling['grade_reserve'])*1.01+2*support+2*f['endpoint_blend_cm']
+        if f['type']=='descent' and run<required:
+            parent=next(p for p in features if p['id']==f['parent'])
+            tangent=project([(line[0][k]+line[-1][k])/2 for k in (0,1)],parent['line_cm'])[2]
+            tangent=[v*f.get('traverse_direction',1) for v in tangent]
+            line=switchback(line[0],line[-1],tangent,required,f['corridor_width_cm'],f['minimum_turn_radius_cm'],
+                            f['width_cm']+2*(f['shoulder_cm']+margin),step)
+            run=sum(math.dist(a,b) for a,b in zip(line,line[1:]))
+        count=max(1,math.ceil(run/step));points=[at_arc(line,run*j/count) for j in range(count+1)]
+        pins={j:relief(tuple(p)) for j,p in enumerate(points) if j in (0,count) or guard(p)==0}
+        for crossing in measured['guard_core_crossings']:
+            low,high=crossing['arc_range_cm']
+            for j,p in enumerate(points):
+                if low-step<=run*j/count<=high+step: pins[j]=baseline(p)+oz
+        f.update(line=line,run=run,drop=drop,points=points,pins=pins)
+        padding=f['width_cm']/2+f['shoulder_cm']+margin
+        f['bounds']=[min(p[k] for p in line)-padding for k in (0,1)]+[max(p[k] for p in line)+padding for k in (0,1)]
+        paths.append(f)
+    paths.sort(key=lambda f:f['id'])
+    for junction in report['path_overlaps']:
+        if junction['resolution']!='common_level_profile_pins_and_simultaneous_weighted_blend':continue
+        height=relief(tuple(junction['xy_cm']))
+        for name,field in zip(junction['features'],('first_arc_range_cm','second_arc_range_cm')):
+            f=next(f for f in paths if f['id']==name);low,high=junction[field]
+            pad=f['width_cm']/2+f['shoulder_cm']+2*margin
+            for j,p in enumerate(f['points']):
+                if low-pad<=f['run']*j/(len(f['points'])-1)<=high+pad and guard(p)==1:f['pins'][j]=height
+    for f in paths:
+        if 'route_reference' in f:
+            f['target']=[relief(tuple(p)) for p in f['points']]
+        else:
+            limit=f['max_grade']*sampling['grade_reserve']
+            if f['type']!='descent':limit=min(f['hard_max_grade']*sampling['grade_reserve'],max(limit,abs(f['drop'])/f['run']*1.001))
+            f['target'],_=pinned_profile(f['points'],f['pins'],limit,f['endpoint_blend_cm'],f['sink_cm'])
+
+    @lru_cache(None)
+    def output_vertex(x,y):
+        p=(ox+x*sx,oy+y*sy);z=relief_vertex(x,y)
+        tread=[];shoulder=[]
+        for f in paths:
+            if 'route_reference' in f:continue
+            b=f['bounds']
+            if not (b[0]<=p[0]<=b[2] and b[1]<=p[1]<=b[3]):continue
+            distance,arc,_=tread_project(p,f['line'])
+            half=f['width_cm']/2
+            if distance>half+f['shoulder_cm']+margin:continue
+            if bound_extensions and not -(half+f['shoulder_cm']+margin)<=arc<=f['run']+half+f['shoulder_cm']+margin:continue
+            u=arc/f['run']*(len(f['target'])-1);j=max(0,min(len(f['target'])-2,math.floor(u)))
+            target=f['target'][j]+(f['target'][j+1]-f['target'][j])*(u-j)
+            weight=(1-smooth(half+margin,half+margin+f['shoulder_cm'],distance))*guard(p)
+            (tread if distance<=half+margin else shoulder).append((weight,target))
+        contributions=tread if sum(w for w,_ in tread)>0 else shoulder
+        weight=sum(w for w,_ in contributions)
+        if weight>0:z+=(sum(w*t for w,t in contributions)/weight-z)*max(w for w,_ in contributions)
+        return math.floor((z-oz)/quantum+32768+.5)*quantum-32768*quantum+oz
+
+    height=lambda p:interpolate(p,output_vertex)
+    result={}
+    for f in paths:
+        grade=cross=error=0;previous=None
+        for j,p in enumerate(f['points']):
+            z=height(p);error=max(error,abs(z-f['target'][j]))
+            if previous is not None:grade=max(grade,abs(z-previous)/math.dist(p,f['points'][j-1]))
+            previous=z
+            t=tread_project(p,f['line'])[2];normal=[-t[1],t[0]];width=f['width_cm'];across=math.ceil(width/step)
+            prev=height([p[k]-normal[k]*width/2 for k in (0,1)])
+            for a in range(1,across+1):
+                next_z=height([p[k]+normal[k]*(-width/2+width*a/across) for k in (0,1)])
+                cross=max(cross,abs(next_z-prev)/(width/across));prev=next_z
+        ceiling=f['max_grade'] if f['type']=='descent' else f['hard_max_grade']
+        valid=('route_reference' in f or (grade<=ceiling and cross<=f['max_cross_slope'] and
+               error<=quantum+sampling['profile_tolerance_cm'] and
+               (f['type']!='descent' or height(f['points'][0])>height(f['points'][-1]))))
+        result[f['id']]=dict(grade=grade,cross_slope=cross,profile_error_cm=error,valid=valid)
+    return result
+
+class RealRasterReplicaTests(unittest.TestCase):
+    def test_real_report_reproduction_and_all_eleven_traversals(self):
+        fixture=pathlib.Path('G:/ue/dustfall/Docs/Phase5_TerrainResults.json')
+        if not fixture.exists():
+            self.skipTest('Lead real-data fixtures unavailable')
+        _,_,resolved,report=real_data_diagnostics()
+        routes={r['id']:r['line_cm'] for r in resolved['resolved']['routes']}
+        current=BUILDER.resolve_features(DATA,tuple(routes['Home_Cruiser'][-1]),routes)
+        self.assertEqual(json.loads(json.dumps(current['features'])),resolved['features'])
+        before=real_raster_replica(False)
+        after=real_raster_replica(True)
+        self.assertEqual(len(after),11)
+        for f in report['features']:
+            if f['id'] not in before:continue
+            metrics=before[f['id']]
+            for replica,native in [('grade','maximum_grade'),('cross_slope','maximum_cross_slope'),
+                                   ('profile_error_cm','maximum_profile_error_cm')]:
+                # Allow sub-micron differences in native versus Python arc accumulation.
+                self.assertAlmostEqual(metrics[replica],f[native],delta=1e-4,msg=f['id']+': '+replica)
+            self.assertEqual(metrics['valid'],f['valid'])
+        for key,metrics in after.items():
+            self.assertTrue(metrics['valid'],key+': '+str(metrics))
+            if key!='scar_trail':self.assertEqual(before[key],metrics,key)
+        print('\nRound4 real baseline replica (grade / cross / error cm):',flush=True)
+        for key,m in after.items():
+            print(f"{key}: {m['grade']:.9f} / {m['cross_slope']:.9f} / {m['profile_error_cm']:.9f} valid={m['valid']}",flush=True)
+
 class RealInputGeometryTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
