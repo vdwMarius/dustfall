@@ -34,9 +34,19 @@ Tested:
   collision matched authored heights within 0.52 cm at 1,427 points; protected
   sites (home, wreck, ruin, cruiser, routes) verified unmoved; 84 packages
   saved; smoke passed again on the new terrain.
-- Terrain captures NOT taken (`capture_phase5_terrain.py` has a Python API
-  bug). PCG rocks/debris still sit on the old ground until the M5p dressing
-  rebuild runs (in progress): expect floating/buried rocks near the canyon.
+- M5p dressing rebuilt on the new terrain (first live run): rocks 71,682 ->
+  54,395, debris 195 -> 94, 58 trail stakes, all 64 cells; 0 corridor or
+  protected-disc violations; max bounding-box ground gap ~0 cm.
+  `verify_phase5_dressing_editor.py` and `verify_phase2_routes_editor.py`
+  passed (18 waypoints in day/calm, night/haze, day/storm). 26 unlit review
+  captures taken (`Saved/Codex/Phase5Terrain`, four copied to
+  `Docs/Phase5/TerrainV2_unlit_*.png`).
+- Known visual problems from those captures: stretched textures on cliff and
+  descent side walls, mismatched rock scan colours on the canyon rim, detached
+  upper tiers on some leaning spires, hard track-mask edges, mechanically flat
+  descent treads. Not fixed.
+- The 64 per-cell PCG graph assets are about 3.4 MB each (about 215 MB per
+  rebuild in git); worth reducing before the next ring.
 - Storm captures at light x2: figures clear at 5/10 m, faint at 15–25 m,
   ridges and the 150 m box readable as faint silhouettes.
 
@@ -49,7 +59,7 @@ Not tested / limits:
 - Round 3 and 4 terrain C++ was reviewed by build, tests and dry run, not
   line by line.
 
-Next: PCG dressing rebuild on the new terrain (M5p) and terrain captures,
+Next: user playtest of terrain v2 and the storm look, dressing art polish,
 place the habitat kit, then the performance lock. Nobody has walked the new
 terrain yet: descents, trails and fall risks need a user playtest.
 
