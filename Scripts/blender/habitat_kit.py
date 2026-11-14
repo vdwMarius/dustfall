@@ -16,7 +16,7 @@ from mathutils import Matrix, Vector
 
 ROOT = Path(__file__).resolve().parents[2]
 PALETTE = {
-    'PaintedMetal': (.46, .40, .30, 1), 'BareMetal': (.29, .30, .28, 1),
+    'PaintedMetal': (.65, .60, .49, 1), 'BareMetal': (.32, .34, .33, 1),
     'DarkMetal': (.055, .065, .065, 1), 'Rubber': (.018, .023, .022, 1),
     'Glass': (.035, .15, .18, 1), 'Emissive_Warm': (1, .48, .12, 1),
     'Emissive_Cool': (.15, .68, 1, 1), 'InteriorPanel': (.37, .35, .29, 1),
@@ -26,7 +26,7 @@ MATS = {}
 PIECES = {}
 PREFIX = 'SM_Hab_'
 FURNISHED_LAYOUT = [
-    ('Bunk',(60,-320,0)),('ShelfUnit',(20,270,0)),('Workbench',(450,265,0)),
+    ('Bunk',(60,-320,0)),('ShelfUnit',(740,270,0)),('Workbench',(450,265,0)),
     ('Fabricator',(520,255,99)),('Locker',(850,280,0)),('Crate_L',(820,-315,0)),
     ('Crate_S',(830,-300,72)),('Stool',(410,220,0)),('O2Tank',(950,270,0)),
     ('WallTerminal',(330,345,180)),('CableBundle',(400,300,5)),
@@ -635,8 +635,8 @@ def capsule_clear(center, boxes):
 def validate_contracts():
     # Analytic rounded rectangle membership for all 8 sanctuary corners.
     def inside(y,z):
-        dy=max(abs(y)-340,0); dz=max(abs(z-200)-170,0)
-        return dy*dy+dz*dz <=30**2+.00001
+        dy=max(abs(y)-325,0); dz=max(33-z,z-355,0)
+        return dy*dy+dz*dz <=45**2+.00001
     assert all(inside(y,z) for y in [-325,325] for z in [0,370])
     assert 5*200>=2*475
     boxes=[]
@@ -665,6 +665,10 @@ def validate_contracts():
             samples+=1
     for suffix in ['EndCap_Door','Airlock','Collar']:
         assert capsule_clear((0,0,90),PIECES[PREFIX+suffix].boxes)
+    alcove=PIECES[PREFIX+'Int_AlcoveFrame']
+    for x in range(-40,101,4):
+        for y in [-50,0,50]:
+            assert capsule_clear((x,y,90),alcove.boxes),('Alcove blocked',x,y)
     wedge=PIECES[PREFIX+'Ramp'].collision_objects[0]
     low=wedge.data.vertices[4].co*100; high=wedge.data.vertices[6].co*100
     slope=(high.z-low.z)/(high.x-low.x)
@@ -679,6 +683,7 @@ def validate_contracts():
             'sanctuary_contained':True,'door_clear_cm':[120,210],
             'capsule_radius_cm':34,'capsule_half_height_cm':90,'capsule_samples':samples,
             'capsule_clear':True,'furnished_aisle_clear':True,'ramp_degrees':7.5,'ramp_capsule_clear':True,
+            'alcove_clear_cm':[180,220],'alcove_capsule_clear':True,
             'scope':'Analytic UCX capsule sweeps, not Unreal CharacterMovement playtest'}
 
 
@@ -817,12 +822,20 @@ def main():
     bpy.ops.object.select_all(action='SELECT'); bpy.ops.object.delete(use_global=False)
     bpy.context.scene.unit_settings.system='METRIC'; bpy.context.scene.unit_settings.scale_length=1
     random.seed(2042); material_setup()
+    # Reusable second art pass; all geometry still goes through the same
+    # deterministic mesh, UV, manifold, socket and UCX export pipeline.
+    sys.path.insert(0,str(Path(__file__).resolve().parent))
+    import habitat_art
+    habitat_art.install(sys.modules[__name__])
     for s in ['A','B','C','Damaged','SideDoor']: hull('HullSegment_'+s)
     bulkhead(); dome(); airlock()
     for s in ['DoorLeaf','Collar','Skid','Ramp','RoofRack','SolarPanel','AntennaMast','Floodlight','ExteriorLamp']: accessory(s)
-    for s in ['FloorPanel','WallPanel_A','WallPanel_B','WallPanel_C','CeilingPanel','CeilingLight','WindowFrame']: interior('Int_'+s)
+    for s in ['FloorPanel','WallPanel_A','WallPanel_B','WallPanel_C','CeilingPanel','CeilingLight','WindowFrame','AlcoveFrame']: interior('Int_'+s)
     for s in ['Bunk','ShelfUnit','Workbench','Fabricator','Locker','Crate_S','Crate_L','Stool','WallTerminal','O2Tank','CableBundle']: furniture(s)
-    for p in PIECES.values(): finalize(p)
+    for p in PIECES.values():
+        finalize(p)
+        budget=120000 if 'HullSegment' in p.name or p.name.endswith(('Airlock','Fabricator')) else 60000
+        assert p.record['triangles']<=budget,(p.name,'Triangle budget exceeded',budget)
     validation=validate_contracts()
     selected=set(args.only.split(',')) if args.only else set(PIECES)
     selected={n if n.startswith(PREFIX) else PREFIX+n for n in selected}

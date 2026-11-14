@@ -6,7 +6,7 @@ Run from the project root with Blender 5.2.4 LTS:
 & 'C:/Program Files (x86)/Steam/steamapps/common/Blender/blender.exe' -b -t 4 -P Scripts/blender/habitat_kit.py -- --manifest --preview
 ```
 
-Default output: `Saved/AssetInbox/HabitatKit/` (ignored). There are 35 pieces,
+Default output: `Saved/AssetInbox/HabitatKit/` (ignored). There are 36 pieces,
 each containing one render mesh, named UCX convex hulls where blocking is needed,
 and `SOCKET_Hull_n` / `SOCKET_Door_n` empties where connectable. Geometry is
 authored in cm, converted to Blender metres, and exported with FBX unit metadata,
@@ -32,6 +32,8 @@ unit per 200 cm, including consistent density on bevels. No lightmap UVs.
 ```powershell
 # Verify FBX units/axes, triangles, UV0, UCX counts and sockets after round trip.
 & 'C:/Program Files (x86)/Steam/steamapps/common/Blender/blender.exe' -b -t 4 -P Scripts/blender/verify_habitat_kit.py -- Saved/AssetInbox/HabitatKit
+# Add --compare Saved/AssetInbox/HabitatKitDeterminism to require byte-identical
+# manifests from a second independent generation.
 ```
 
 The inner rounded rectangle contains the sanctuary box centered at `(500,0,185)`
@@ -46,12 +48,33 @@ end X400; its exact rise is `400*tan(7.5 degrees)`. Offset it down by that rise
 when attaching its high end to a door at Z0. Skids and roof equipment are
 attachments with their origin at their local mounting datum.
 
-Previews use Workbench studio lighting and simple material colors, without the
-reference images' dust, rust textures or scene grading. Inspect
-`previews/ASSEMBLED_Exterior.png`, `ASSEMBLED_InteriorCutaway.png`, the windowed
-segment, damaged segment and Fabricator first. The cutaway omits the near wall
-and ceiling to show furniture and the aisle. Furniture is preview dressing;
-sanctuary containment describes the empty structural shell.
+Round-two previews are 1600 x 1200 Cycles renders (24 samples, denoised), with
+distinct slot colours, transmissive glass, separate warm window panes, glow,
+a ground plane, low warm key and soft fill. Inspect `ASSEMBLED_Exterior.png`
+(hatch), `ASSEMBLED_RearDamage.png` (dome and torn skin), and
+`ASSEMBLED_InteriorCutaway.png` (165 cm eye height) first. The interior cutaway
+opens the front, retaining the curved shoulder ribs, ceiling and service trays.
+Furniture is preview dressing; sanctuary containment describes the empty shell.
+The two windows in B each have a 110 x 80 cm aperture; they are stacked vertically
+to fit both within the unchanged 200 cm segment. The inner shoulder fillet is
+45 cm, contained by the 170 cm outer corner radius; the sanctuary contract is
+unchanged. `SM_Hab_Int_AlcoveFrame` has a 180 x 220 cm opening and a 60 cm deep sill.
+No material slot names changed, so the existing importer needs no modification.
+
+To re-render exported FBXs without rebuilding the source geometry:
+
+```powershell
+& 'C:/Program Files (x86)/Steam/steamapps/common/Blender/blender.exe' -b -t 6 -P Scripts/blender/preview_habitat_kit.py --
+# Add --assembled-only to render just the three assembled scenes.
+# Or --only Fabricator --skip-assembled for a single exported-mesh review.
+```
+
+`habitat_art.py` contains reusable curved plate, stepped hatch, raised bitmap
+lettering, closed rumpled blanket and review-scene builders. Structural and
+export contracts remain in `habitat_kit.py`. Generation asserts closed manifold
+components and per-piece triangle budgets (120k for hulls/airlock/fabricator,
+60k for other pieces), and checks capsule passage through the new alcove.
+See `ROUND2_REVIEW.md` for the itemized art pass, measured counts and validation.
 
 Unreal authoring is a separate serialized step, performed only by the editor-lock
 holder via the existing command queue:

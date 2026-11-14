@@ -1,5 +1,7 @@
 """Headless FBX round-trip check. Usage: blender -b -P this.py -- <kit-dir>."""
+import argparse
 import ast
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -12,7 +14,11 @@ from mathutils import Vector
 def main():
     source_root=Path(__file__).resolve().parents[2]
     ast.parse((source_root/'Scripts/import_phase5_habitat_kit.py').read_text())
-    root=Path(sys.argv[sys.argv.index('--')+1]).resolve()
+    parser=argparse.ArgumentParser()
+    parser.add_argument('root',type=Path)
+    parser.add_argument('--compare',type=Path,help='Second independent generation directory')
+    args=parser.parse_args(sys.argv[sys.argv.index('--')+1:])
+    root=args.root.resolve()
     manifest=json.loads((root/'manifest.json').read_text())
     results={}
     for name,expected in manifest['pieces'].items():
@@ -44,6 +50,13 @@ def main():
                        'convex_hulls':len(hulls),'sockets':len(expected['sockets']),'uv0':True}
         print('ROUNDTRIP_PASS',name,flush=True)
     report={'status':'passed','pieces':results,'scope':'Blender FBX round trip; Unreal importer not executed'}
+    if args.compare:
+        first=(root/'manifest.json').read_bytes()
+        second=(args.compare/'manifest.json').read_bytes()
+        assert first==second,'Independent generation manifests differ'
+        report['determinism']={'status':'passed','pieces':len(results),
+            'manifest_sha256':hashlib.sha256(first).hexdigest(),
+            'scope':'Byte-identical manifests including mesh hashes, counts, bounds, sockets and UCX'}
     (root/'fbx_roundtrip.json').write_text(json.dumps(report,indent=2)+'\n')
     print('ROUNDTRIP_COMPLETE',len(results),flush=True)
 
