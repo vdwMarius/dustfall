@@ -390,7 +390,10 @@ FString DustfallAuthorTerrainV2(AActor* Actor, const FString& BaselineFile, cons
             if (P.X<F.BoundsMin.X || P.X>F.BoundsMax.X || P.Y<F.BoundsMin.Y || P.Y>F.BoundsMax.Y) continue;
             const auto Q=Math::ProjectTread(P,F.Line);
             const double Half=N(F.Data,TEXT("width_cm"))*.5, Shoulder=N(F.Data,TEXT("shoulder_cm"));
-            if (Q.Distance>Half+Shoulder+RasterMargin) continue;
+            // Endpoint normal coordinates extrapolate for raster support. A
+            // hairpin AABB can contain long backward anchor rays; never carve them.
+            if (Q.Distance>Half+Shoulder+RasterMargin ||
+                !Math::IsTreadArcSupported(Q.Arc,F.Total,Half+Shoulder+RasterMargin)) continue;
             const double U=Q.Arc/F.Total*(F.Target.Num()-1);
             const int32 J=FMath::Clamp(FMath::FloorToInt(U),0,F.Target.Num()-2);
             const double Target=FMath::Lerp(F.Target[J],F.Target[J+1],U-J);
@@ -495,9 +498,23 @@ FString DustfallAuthorTerrainV2(AActor* Actor, const FString& BaselineFile, cons
                 {
                     for (const FFeature& Other:Features) if (Other.Stage==TEXT("path") && Other.Id!=F.Id)
                     {
-                        const auto Q=Math::Project(P,Other.Line);
-                        if (Q.Distance<N(Other.Data,TEXT("width_cm"))*.5+N(Other.Data,TEXT("shoulder_cm"))+RasterMargin)
-                        { Cause=TEXT("overlap:")+Other.Id; break; }
+                        if (Other.Data->HasField(TEXT("route_reference")) ||
+                            P.X<Other.BoundsMin.X || P.X>Other.BoundsMax.X ||
+                            P.Y<Other.BoundsMin.Y || P.Y>Other.BoundsMax.Y) continue;
+                        // Inspect the writer's normal coordinates: finite
+                        // polyline projection cannot diagnose endpoint rays.
+                        const auto Q=Math::ProjectTread(P,Other.Line);
+                        const double Support=N(Other.Data,TEXT("width_cm"))*.5+N(Other.Data,TEXT("shoulder_cm"))+RasterMargin;
+                        if (Q.Distance>Support) continue;
+                        const bool bExtension=Q.Arc<0 || Q.Arc>Other.Total;
+                        if (!Math::IsTreadArcSupported(Q.Arc,Other.Total,Support))
+                        {
+                            D->SetStringField(TEXT("excluded_endpoint_extension"),Other.Id);
+                            D->SetNumberField(TEXT("excluded_endpoint_arc_cm"),Q.Arc);
+                            continue;
+                        }
+                        Cause=(bExtension?TEXT("endpoint_extension:"):TEXT("overlap:"))+Other.Id;
+                        break;
                     }
                     if (Cause==TEXT("unknown"))
                     {

@@ -82,6 +82,11 @@ FDustfallTerrainMath::FProjection FDustfallTerrainMath::ProjectTread(
     return Result.Distance<TNumericLimits<double>::Max()?Result:Project(P,Line);
 }
 
+bool FDustfallTerrainMath::IsTreadArcSupported(double Arc, double Total, double EndpointSupport)
+{
+    return FMath::IsFinite(Arc) && Arc>=-EndpointSupport && Arc<=Total+EndpointSupport;
+}
+
 TArray<FVector2D> FDustfallTerrainMath::CoreIntervals(const TArray<FVector2D>& Line,
     const TArray<FVector>& Discs, const TArray<TArray<FVector2D>>& Routes, double RouteRadius)
 {

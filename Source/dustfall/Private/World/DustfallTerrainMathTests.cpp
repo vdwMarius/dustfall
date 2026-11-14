@@ -146,6 +146,15 @@ bool FDustfallTerrainTreadTest::RunTest(const FString& Parameters)
         const auto Left=M::ProjectTread(P-Normal*200,Line),Right=M::ProjectTread(P+Normal*200,Line);
         TestTrue(TEXT("True normal has one profile height across full 4m tread"),FMath::Abs(Left.Arc-Right.Arc)<.001);
     }
+    // A hairpin's backward endpoint ray is close to the approaching trail.
+    const TArray<FVector2D> Hairpin={{-35000,-27000},{-42000,-27000},{-42000,-30000},{-28000,-30000}};
+    const auto Intrusion=M::ProjectTread(FVector2D(-30912,-26646),Hairpin);
+    const double Support=175+450+FMath::Sqrt(20000.);
+    TestTrue(TEXT("Regression projects onto backward endpoint ray"),FMath::Abs(Intrusion.Arc+4088)<.001);
+    TestFalse(TEXT("Backward ray cannot carve approaching trail"),M::IsTreadArcSupported(Intrusion.Arc,24000,Support));
+    TestTrue(TEXT("Oblique endpoint raster support retained"),M::IsTreadArcSupported(-100,24000,Support));
+    TestTrue(TEXT("End shoulder support retained"),M::IsTreadArcSupported(24000+Support,24000,Support));
+    TestFalse(TEXT("Forward infinite ray excluded"),M::IsTreadArcSupported(24000+Support+1,24000,Support));
     const TArray<FVector2D> Oblique={{0,0},{3000,4000}};
     TestTrue(TEXT("Endpoint raster support extrapolates along grade"),M::ProjectTread(FVector2D(3060,4080),Oblique).Arc>5000);
     const FVector2D Normal(-.8,.6);
