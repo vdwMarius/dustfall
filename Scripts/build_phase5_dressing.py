@@ -236,8 +236,11 @@ def main():
     ignore=[a for a in all_actors if not isinstance(a,unreal.LandscapeProxy)]
     breaker=unreal.get_default_object(unreal.GameplayStatics.static_class())
     def ground(x,y):
+        a,b,c,d=inputs.bounds
+        x=max(a+1,min(c-1,x)); y=max(b+1,min(d-1,y))
         hit=unreal.SystemLibrary.line_trace_single(world,unreal.Vector(x,y,100000),unreal.Vector(x,y,-100000),
             unreal.TraceTypeQuery.TRACE_TYPE_QUERY1,False,ignore,unreal.DrawDebugTrace.NONE,True)
+        if hit is None: raise RuntimeError('Loaded landscape collision missing at '+str((x,y)))
         parts=breaker.call_method('BreakHitResult',(hit,))
         if not parts[0]: raise RuntimeError('Loaded landscape collision missing at '+str((x,y)))
         return parts[5].z,parts[7]
@@ -248,7 +251,9 @@ def main():
         a,b,c,d=inputs.bounds
         size=rules['cell_size_cm']; ix=math.floor(x/size); iy=math.floor(y/size)
         label='P3_PCGCell_%d_%d'%(ix,iy)
-        if label not in cells: raise RuntimeError('Candidate outside existing 64-cell grid')
+        # Landscape mask includes an 8m border outside the original PCG grid.
+        # Keep the existing owners/grid rather than creating outlying cells.
+        if label not in cells: return False
         plans[label].append(dict(kind=kind,mesh=index,xyz=[x,y,z-low-embed],scale=scale,rotation=[pitch,yaw,roll]))
         counts[kind]+=1; return True
     def process(candidate):
@@ -367,12 +372,15 @@ def main():
             s.points_to_create=data; s.coordinate_space=unreal.PCGCoordinateSpace.WORLD
             spawn,settings=g.add_node_of_type(unreal.PCGStaticMeshSpawnerSettings);spawn.node_title=unreal.Name('P5: '+kind+' Nanite');spawn.set_node_position(450,9000+row*250)
             settings.synchronous_load=True; settings.set_mesh_selector_type(unreal.PCGMeshSelectorWeighted)
-            descriptor=unreal.PCGSoftISMComponentDescriptor(); descriptor.static_mesh=meshes[index]
-            descriptor.component_class=unreal.InstancedStaticMeshComponent
-            descriptor.component_tags=[unreal.Name(TAG),unreal.Name('DF_P5_'+kind)]
-            descriptor.instance_end_cull_distance=rules[kind]['cull_cm']; descriptor.instance_start_cull_distance=int(rules[kind]['cull_cm']*.72)
-            body=descriptor.body_instance;body.collision_profile_name=unreal.Name('NoCollision' if kind in ('flats','edges','stakes') else 'BlockAll');descriptor.body_instance=body
-            entry=unreal.PCGMeshSelectorWeightedEntry();entry.descriptor=descriptor;entry.weight=1
+            descriptor=unreal.PCGSoftISMComponentDescriptor(); descriptor.set_editor_property('static_mesh',meshes[index])
+            descriptor.set_editor_property('component_class',unreal.InstancedStaticMeshComponent)
+            descriptor.set_editor_property('component_tags',[unreal.Name(TAG),unreal.Name('DF_P5_'+kind)])
+            descriptor.set_editor_property('instance_end_cull_distance',rules[kind]['cull_cm'])
+            descriptor.set_editor_property('instance_start_cull_distance',int(rules[kind]['cull_cm']*.72))
+            body=descriptor.get_editor_property('body_instance')
+            body.set_editor_property('collision_profile_name',unreal.Name('NoCollision' if kind in ('flats','edges','stakes') else 'BlockAll'))
+            descriptor.set_editor_property('body_instance',body)
+            entry=unreal.PCGMeshSelectorWeightedEntry();entry.set_editor_property('descriptor',descriptor);entry.set_editor_property('weight',1)
             selector=settings.get_editor_property('mesh_selector_parameters')
             selector.set_editor_property('mesh_entries',[entry])
             core['connect'](g,n,spawn)
@@ -386,6 +394,9 @@ def main():
     def stop():
         unreal.unregister_slate_post_tick_callback(state['handle']);unreal._dustfall_phase5_dressing_handle=None
     def tick(delta):
+        # Saving/compiling assets can pump Slate recursively on this build.
+        if state.get('busy'): return
+        state['busy']=True
         try:
             if time.monotonic()-started>rules['timeout_seconds']: raise RuntimeError('Dressing authoring timed out')
             if state['stage']=='sampling':
@@ -413,7 +424,9 @@ def main():
                     report['path_material']=path_material(unreal,root,inputs)
                     for label,a in cells.items():
                         pcg=a.get_component_by_class(unreal.PCGComponent); state['old_graphs'][label]=pcg.get_graph()
-                        a.modify();pcg.modify();a.set_editor_property('is_spatially_loaded',False)
+                        # Authoring cells are pinned. Changing actor properties
+                        # reconstructs Blueprint components and loses instance graphs.
+                        a.modify();pcg.modify()
                         pcg.set_graph(state['graphs'][label]);pcg.generate(True)
                     state.update(stage='generating',generation_since=time.monotonic())
             else:
@@ -421,7 +434,7 @@ def main():
                 live={a.get_actor_label():a for a in actors.get_all_level_actors() if a.get_actor_label() in cells}
                 if len(live)!=64:raise RuntimeError('Lost PCG owners during generation')
                 comps=[a.get_component_by_class(unreal.PCGComponent) for a in live.values()]
-                if not all(c.generated and not c.generation_in_progress for c in comps):return
+                if not all(c.get_editor_property('generated') and not c.get_editor_property('generation_in_progress') for c in comps):return
                 for label,a in live.items():
                     actual=sum(c.get_instance_count() for c in a.get_components_by_class(unreal.InstancedStaticMeshComponent) if TAG in map(str,c.component_tags))
                     if actual!=len(plans[label]):
@@ -440,7 +453,7 @@ def main():
                     if any(e[:2]!=v[:2] or any(abs(x-y)>.1 for x,y in zip(e[2:],v[2:])) for e,v in zip(expected,actual_transforms)):
                         if time.monotonic()-state['generation_since']<15:return
                         raise RuntimeError('Stale or transformed PCG point output '+label)
-                    a.modify();a.set_editor_property('is_spatially_loaded',True)
+                    a.modify()
                     for c in a.get_components_by_class(unreal.InstancedStaticMeshComponent):c.modify()
                 audit=runpy.run_path(str(root/'Scripts/verify_phase5_dressing_editor.py'))['audit'](root)
                 report.update(audit)
@@ -453,9 +466,12 @@ def main():
             report.update(status=state['stage'],planned_counts=dict(counts),graphs_authored=state['index']);write()
         except Exception:
             for label,a in cells.items():
-                if unreal.SystemLibrary.is_valid(a):a.set_editor_property('is_spatially_loaded',spatial[label])
+                if unreal.SystemLibrary.is_valid(a) and a.get_editor_property('is_spatially_loaded')!=spatial[label]:
+                    a.set_editor_property('is_spatially_loaded',spatial[label])
             report.update(status='failed',error=traceback.format_exc(),recovery='Original Phase3 graph is preserved. Inspect unsaved task output; rerun after correcting error. Do not save unrelated dirty packages.')
             write();unreal.log_error(report['error']);stop()
+        finally:
+            state['busy']=False
     write();state['handle']=unreal.register_slate_post_tick_callback(tick);unreal._dustfall_phase5_dressing_handle=state['handle']
 
 

@@ -29,6 +29,9 @@ def audit(root):
                 limits='Component/bounds/mask audit only; no gameplay, visual, persistence, HLOD or performance acceptance')
     counts=collections.Counter(); violations=[]; records=[]
     landscapes=[a for a in actors.get_all_level_actors() if isinstance(a,unreal.LandscapeProxy)]
+    ignore=[a for a in actors.get_all_level_actors() if not isinstance(a,unreal.LandscapeProxy)]
+    breaker=unreal.get_default_object(unreal.GameplayStatics.static_class())
+    gaps=[]
     report['landscape_materials']=[]
     for landscape in landscapes:
         material=landscape.get_editor_property('landscape_material')
@@ -42,7 +45,7 @@ def audit(root):
     for actor in cells:
         label=actor.get_actor_label(); pcg=actor.get_component_by_class(unreal.PCGComponent)
         item=dict(counts={},spatially_loaded=actor.get_editor_property('is_spatially_loaded'))
-        if not pcg or not pcg.generated or pcg.generation_in_progress or not pcg.get_graph() or not pcg.get_graph().get_path_name().startswith(builder['DEST']+'/PCG/'):
+        if not pcg or not pcg.get_editor_property('generated') or pcg.get_editor_property('generation_in_progress') or not pcg.get_graph() or not pcg.get_graph().get_path_name().startswith(builder['DEST']+'/PCG/'):
             report['errors'].append('Missing completed Phase5 graph: '+label)
         if not item['spatially_loaded']: report['errors'].append('Cell not spatially streamed: '+label)
         local=collections.Counter()
@@ -71,7 +74,16 @@ def audit(root):
                 q=transform.rotation; rotation=q.rotator()
                 records.append((path,kind,p.x,p.y,p.z,q.x,q.y,q.z,q.w,s.x,s.y,s.z))
                 if kind=='dust': continue # Airborne sheets are nonblocking, not geology.
-                radius,_=pure['footprint'](bounds,[s.x,s.y,s.z],rotation.pitch,rotation.roll)
+                radius,low=pure['footprint'](bounds,[s.x,s.y,s.z],rotation.pitch,rotation.roll)
+                if kind in ('flats','slopes','talus','rims','edges','stakes','cliffs'):
+                    hit=unreal.SystemLibrary.line_trace_single(world,unreal.Vector(p.x,p.y,100000),unreal.Vector(p.x,p.y,-100000),
+                        unreal.TraceTypeQuery.TRACE_TYPE_QUERY1,False,ignore,unreal.DrawDebugTrace.NONE,True)
+                    parts=breaker.call_method('BreakHitResult',(hit,)) if hit is not None else None
+                    if not parts or not parts[0]: report['errors'].append('Ground-gap trace missed '+label)
+                    else:
+                        gap=p.z+low-parts[5].z
+                        gaps.append((gap,kind,label,index))
+                        if gap>1: report['errors'].append('Floating instance bounds >1cm '+label)
                 if not inputs.clear(p.x,p.y,radius):
                     report['corridor_violation_count']+=1
                     if len(violations)<32:violations.append(dict(cell=label,kind=kind,mesh=path,index=index,xy_cm=[p.x,p.y],radius_cm=radius))
@@ -96,6 +108,9 @@ def audit(root):
                   instances_per_cell={k:sum(v['counts'].values()) for k,v in report['cells'].items()},
                   corridor_violations_sample=violations,layout_sha256=digest.hexdigest())
     report['errors']=sorted(set(report['errors']))
+    report['ground_seating']=dict(measured_instances=len(gaps),max_ground_gap_cm=max((max(0,g[0]) for g in gaps),default=None),
+        min_signed_gap_cm=min((g[0] for g in gaps),default=None),
+        method='Landscape-only vertical trace at instance XY versus rotated mesh bounding-box bottom; cliffs intentionally embedded; upper spire tiers excluded. Not a surface-contact or walkability test.')
     return report
 
 
