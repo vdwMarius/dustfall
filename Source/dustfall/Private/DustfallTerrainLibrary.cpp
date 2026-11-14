@@ -121,15 +121,25 @@ FString UDustfallTerrainLibrary::AuthorHostileRelief(AActor* LandscapeActor, con
 }
 
 #if WITH_EDITOR
-FString DustfallAuthorTerrainV2(AActor*, const FString&, const FString&, const FString&);
+FString DustfallAuthorTerrainV2(AActor*, const FString&, const FString&, const FString&, bool);
 #endif
 
 FString UDustfallTerrainLibrary::AuthorTerrainFromFeatures(AActor* Actor, const FString& Baseline,
     const FString& Features, const FString& Report)
 {
 #if WITH_EDITOR
-    return DustfallAuthorTerrainV2(Actor, Baseline, Features, Report);
+    return DustfallAuthorTerrainV2(Actor, Baseline, Features, Report, false);
 #else
     return TEXT("ERROR: terrain authoring is editor-only");
+#endif
+}
+
+FString UDustfallTerrainLibrary::ValidateTerrainFeatures(AActor* Actor, const FString& Baseline,
+    const FString& Features, const FString& Report)
+{
+#if WITH_EDITOR
+    return DustfallAuthorTerrainV2(Actor, Baseline, Features, Report, true);
+#else
+    return TEXT("ERROR: terrain validation is editor-only");
 #endif
 }

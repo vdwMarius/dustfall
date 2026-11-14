@@ -12,6 +12,19 @@ struct DUSTFALL_API FDustfallTerrainMath
         FVector2D Point = FVector2D::ZeroVector;
         FVector2D Tangent = FVector2D(1,0);
     };
+    struct FSwitchback
+    {
+        TArray<FVector2D> Line;
+        double Length = 0;
+        double TurnRadius = 0;
+        double LaneSpacing = 0;
+        int32 Turns = 0;
+        FString Error;
+    };
+    // Full cut-footprint corridor centred on anchor traverse, legs parallel to WallTangent.
+    static FSwitchback Switchback(const FVector2D& Top, const FVector2D& Bottom,
+        const FVector2D& WallTangent, double RequiredRun, double CorridorWidth,
+        double MinimumRadius, double MinimumSpacing, double SampleStep);
     static double Smooth(double A, double B, double X);
     static FProjection Project(const FVector2D& Point, const TArray<FVector2D>& Line);
     static FVector2D AtArc(const TArray<FVector2D>& Line, double Arc);

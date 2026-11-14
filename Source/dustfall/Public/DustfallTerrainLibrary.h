@@ -9,6 +9,11 @@ class DUSTFALL_API UDustfallTerrainLibrary : public UBlueprintFunctionLibrary
 {
     GENERATED_BODY()
 public:
+    /** In-memory authoring validation. Only report JSON is written; packages stay clean. */
+    UFUNCTION(BlueprintCallable, Category="Dustfall|Editor")
+    static FString ValidateTerrainFeatures(AActor* LandscapeActor, const FString& BaselineFile,
+        const FString& FeaturesJsonFile, const FString& OutReportJsonFile);
+
     /** Deterministic v2 JSON authoring. Reports/masks are written before any landscape mutation. */
     UFUNCTION(BlueprintCallable, Category="Dustfall|Editor")
     static FString AuthorTerrainFromFeatures(AActor* LandscapeActor, const FString& BaselineFile,

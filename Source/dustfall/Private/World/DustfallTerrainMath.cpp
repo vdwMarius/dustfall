@@ -73,3 +73,60 @@ bool FDustfallTerrainMath::LimitGrade(const TArray<FVector2D>& Points, TArray<do
     }
     return !bPin || (FMath::IsNearlyEqual(Z[0],First,.001) && FMath::IsNearlyEqual(Z.Last(),Last,.001));
 }
+
+FDustfallTerrainMath::FSwitchback FDustfallTerrainMath::Switchback(
+    const FVector2D& Top, const FVector2D& Bottom, const FVector2D& WallTangent,
+    double RequiredRun, double CorridorWidth, double MinimumRadius,
+    double MinimumSpacing, double SampleStep)
+{
+    FSwitchback Result;
+    const FVector2D Along=WallTangent.GetSafeNormal();
+    FVector2D Across(-Along.Y,Along.X);
+    if (FVector2D::DotProduct(Bottom-Top,Across)<0) Across=-Across;
+    const double Span=FVector2D::DotProduct(Bottom-Top,Across);
+    const double Offset=FVector2D::DotProduct(Bottom-Top,Along);
+    const double MinPitch=FMath::Max(2*MinimumRadius,MinimumSpacing);
+    if (Along.IsNearlyZero() || MinPitch<=0 || SampleStep<=0 || Span<MinPitch || CorridorWidth<=MinPitch)
+    {
+        Result.Error=TEXT("Invalid switchback corridor: anchors must span at least one safe turn");
+        return Result;
+    }
+    const int32 MaxTurns=FMath::FloorToInt(Span/MinPitch);
+    for (int32 Turns=1; Turns<=MaxTurns; ++Turns)
+    {
+        const double Radius=Span/(2*Turns);
+        // MinimumSpacing includes the complete cut footprint (tread, shoulders,
+        // raster support), so reserve half at both corridor edges as well.
+        const double Capacity=(CorridorWidth-MinimumSpacing)*.5-Radius-FMath::Abs(Offset)*.5;
+        // Semicircle chords are slightly shorter than analytic arcs. Generate
+        // only the run needed, with margin, while avoiding reversed short legs.
+        const double HalfLeg=FMath::Max(FMath::Abs(Offset)/(2*Turns)+SampleStep,
+            (RequiredRun*1.002-Turns*PI*Radius)/(2*Turns));
+        if (HalfLeg<=0 || HalfLeg>Capacity) continue;
+        TArray<FVector2D> Line;
+        auto Add=[&](double X,double Y) { Line.Add(Top+Across*X+Along*Y); };
+        Add(0,0);
+        for (int32 I=0; I<Turns; ++I)
+        {
+            const double Sign=I%2==0?1.:-1.;
+            const double CentreOffset=Offset*(I+.5)/Turns;
+            const int32 Segments=FMath::Max(32,FMath::CeilToInt(PI*Radius/SampleStep));
+            for (int32 J=0; J<=Segments; ++J)
+            {
+                const double Angle=PI*J/Segments;
+                Add(2*Radius*I+Radius*(1-FMath::Cos(Angle)),CentreOffset+Sign*(HalfLeg+Radius*FMath::Sin(Angle)));
+            }
+        }
+        Add(Span,Offset);
+        double Run=0;
+        for (int32 I=1; I<Line.Num(); ++I) Run+=(Line[I]-Line[I-1]).Size();
+        if (Run>=RequiredRun)
+        {
+            Result.Line=MoveTemp(Line); Result.Length=Run; Result.TurnRadius=Radius;
+            Result.LaneSpacing=2*Radius; Result.Turns=Turns;
+            return Result;
+        }
+    }
+    Result.Error=TEXT("Safe hairpins cannot fit corridor/anchor span; widen corridor or move anchors");
+    return Result;
+}
