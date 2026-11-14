@@ -1,5 +1,46 @@
 # Development progress
 
+## 2026-11-14 — Resume: atmosphere rounds 3–4, terrain validation, habitat kit import
+
+Lead: Claude. Workers: Codex Sol medium (M5t rounds 2–4, M6 rounds 3–4, M4 kit
+round 2). Session resumed after a lost chat; worker results were recovered from
+the worktrees.
+
+Completed:
+- M6 atmosphere: fog seam removed (both fog systems share one source radiance);
+  thinner wind streaks, ground-hugging dust sheets, flashlight cone on dust.
+  Storm far silhouettes were lost in round 3 and restored by raising
+  `StormLightMultiplier` .52 -> 2.0 (fog look unchanged). A worker proposal that
+  darkened the storm fog instead was rejected (daytime storms went near black).
+  Captures: `Docs/Phase5/AtmosphereV3_*.png`, `AtmosphereV4_storm_day*.png`.
+- M5t terrain: `ValidateTerrainFeatures` dry run (reports every problem in one
+  pass, editor stays clean), self-solving switchback descents, guard-pinned
+  profiles, simultaneous path carving. **Terrain v2 is NOT applied to the map.**
+- M4 kit: 36-piece Blender habitat kit generated and imported to
+  `/Game/Habitat/Kit` (importer scale/socket/collision checks passed). Not yet
+  placed in the level; the old shelter is unchanged.
+
+Tested:
+- Editor build: zero errors, zero warnings. `Dustfall.Core`: 14/14.
+- `smoke_phase5_editor.py` passed after the atmosphere changes.
+- Terrain dry run on real data: 10 of 11 paths/descents valid; `scar_trail`
+  fails near the canyon rim (cross slope 1.86, profile error 92 cm); round 4
+  in progress.
+- Storm captures at light x2: figures clear at 5/10 m, faint at 15–25 m,
+  ridges and the 150 m box readable as faint silhouettes.
+
+Not tested / limits:
+- Only the two storm-day views were re-captured after the light change; storm
+  at night, haze, dusk and calm were not re-captured with the final values.
+  Haze 150 m contrast measured about 0 in round 3 and was not retuned.
+- Dust motion (streaks, ground sheets), flashlight cone feel and GPU cost: user
+  playtest / profiling only. No packaged build of this state.
+- Round 3 and 4 terrain C++ was reviewed by build, tests and dry run, not
+  line by line.
+
+Next: finish `scar_trail`, apply terrain v2, rebuild PCG dressing (M5p), place
+the habitat kit, then the performance lock.
+
 ## 2026-11-13 — M3b: native survival director, Enhanced Input
 
 Lead: Claude. Workers: Codex Sol medium (M3b-1 C++, M3b-2 input, M3b-3 scripts).
